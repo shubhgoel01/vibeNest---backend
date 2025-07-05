@@ -5,6 +5,12 @@ import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 
+const fileSchema = mongoose.Schema({
+    url: String,
+    public_id: String
+},
+{ _id: false })
+
 const userSchema = mongoose.Schema({
     userName : {
         type : String,
@@ -33,8 +39,8 @@ const userSchema = mongoose.Schema({
         required : true,
     },
     avatar: {
-        type : String, 
-        default: null
+        type: fileSchema,
+        required: true
     },
     refreshToken: String,
     followersCount: {
@@ -42,8 +48,6 @@ const userSchema = mongoose.Schema({
         default: 0
     }
 }, {timestamps: true,})
-
-export const User = new mongoose.model('User', userSchema);
 
 userSchema.methods.isPasswordCorrect = async function (password){
     if(!password) return false;
@@ -53,7 +57,7 @@ userSchema.methods.isPasswordCorrect = async function (password){
 
 userSchema.pre('save', async function(next){
     if(!this.isModified('password'))
-        next()
+        return next()
     
     this.password = await bcrypt.hash(this.password, 10)
     next()
@@ -94,3 +98,5 @@ userSchema.methods.generateAccessToken = async function(){
 
     return accessToken
 };
+
+export const User = new mongoose.model('User', userSchema);

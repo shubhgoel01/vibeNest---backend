@@ -6,7 +6,7 @@ import { User } from "../models/users.models.js"
 import ApiError from "../utils/apiError.utils.js"
 import ApiResponse from "../utils/ApiResponse.utils.js"
 import jwt from "jsonwebtoken"
-import uploadOnCloudinary from "../utils/cloudinary.utils.js"
+import {uploadOnCloudinary} from "../utils/cloudinary.utils.js"
 
 
 const registerController = asyncHandler(async (req, res) => {
@@ -27,19 +27,20 @@ const registerController = asyncHandler(async (req, res) => {
     if(user)
         throw new ApiError(400, "User with email already exists", {}, "registerController: users.controllers.js")
 
-    const avatarLocalStorageUrl = req.file?.avatar?.path
-
+    const avatarLocalStorageUrl = await req.file?.path
     if(!avatarLocalStorageUrl)
         throw new ApiError(500, "Some internal error occurred", new Error("avatarLocalStorageUrl not found"), "registerController: users.controllers.js")
 
-    let avatarUrl = uploadOnCloudinary(avatarLocalStorageUrl)
 
-    const newUser = User({
+    let cloudinaryResponse = await uploadOnCloudinary(avatarLocalStorageUrl)
+
+
+    const newUser = new User({
         userName,
         password,
         fullName,
         email,
-        avatar: avatarUrl,
+        avatar: {url: cloudinaryResponse.secure_url, public_id: cloudinaryResponse.public_id},
     })
 
     const newRefreshToken = await newUser.generateRefreshToken()
@@ -51,7 +52,7 @@ const registerController = asyncHandler(async (req, res) => {
 
     const savedUser = await newUser.save()
     if(!savedUser)
-                throw ApiError(500, "Registration failed", new Error("avatarLocalStorageUrl not found"), "registerController: users.controllers.js")
+        throw ApiError(500, "Registration failed", new Error("avatarLocalStorageUrl not found"), "registerController: users.controllers.js")
 
 
     const loggedInUser = savedUser.toObject();

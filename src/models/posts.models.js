@@ -1,5 +1,11 @@
 import mongoose from "mongoose";
 
+const fileSchema = mongoose.Schema({
+    url: String,
+    public_id: String
+},
+{ _id: false })
+
 const postSchema = mongoose.Schema({
     title: {
         type: String,
@@ -11,10 +17,7 @@ const postSchema = mongoose.Schema({
         required: true,
         trim: true,
     },
-    fileUrl: [{
-        type: String,
-        default: null,
-    }],
+    fileUrl:[fileSchema],
     ownersId:{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',

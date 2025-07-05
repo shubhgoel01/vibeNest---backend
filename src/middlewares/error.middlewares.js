@@ -1,11 +1,12 @@
-import ApiError from "../utils/ApiError.utils.js";
+import ApiError from "../utils/apiError.utils.js";
+
 export const globalErrorHandler = (err, req, res, next) => {
-    if(err instanceof ApiError) 
-        return res.status(err.statusCode).json(err);
-    else return res.status(500).json({
-        statusCode: 500,
-        message: "Some Internal error occurred",
-        error: err.message || "Internal Server Error",
-        placeOferror: "errorHandeler : error.middlewares.js",
-    })
+    return res.status(err.statusCode || 500).json({
+            statusCode: err.statusCode || 500,
+            message: err.message || "Some Internal error occurred",
+            error: err.error || null,
+            placeOfError: err.placeOfError || "errorHandeler : error.middlewares.js",   
+        })
 }
+
+//Note In teh first if - i am not directly returning thye err, i am creating a new response 

@@ -1,10 +1,12 @@
-import MAX_FILES_COUNT from '../constants.js'
+import {MAX_FILES_COUNT} from "../constants.js"
 
 import asyncHandler from '../utils/asyncHandler.utils.js'
 import ApiError from '../utils/apiError.utils.js'
 import { Post } from '../models/posts.models.js';
 import ApiResponse from '../utils/ApiResponse.utils.js';
-import uploadOnCloudinary from '../utils/cloudinary.utils.js';
+import {uploadOnCloudinary} from '../utils/cloudinary.utils.js';
+import mongoose from "mongoose"
+import { deleteFromCloudinary } from "../utils/cloudinary.utils.js";
 
 const uploadPost = asyncHandler(async (req, res) => {
     const { title, description } = req.body;
@@ -31,7 +33,10 @@ const uploadPost = asyncHandler(async (req, res) => {
         for (const file of req.files.videos) {
             const uploadedVideo = await uploadOnCloudinary(file.path);
             
-            array_files.push(uploadedVideo.secure_url);
+            array_files.push({
+                url: uploadedVideo?.secure_url,
+                public_id: uploadedVideo?.public_id
+            });
         }
     }
 
@@ -41,7 +46,13 @@ const uploadPost = asyncHandler(async (req, res) => {
             if (!uploadedImage?.secure_url) {
                 throw new ApiError(500, "Image upload failed", new Error("Cloudinary upload failed"), 'uploadVideo: videos.controllers.js');
             }
-            array_files.push(uploadedImage.secure_url);
+
+            console.log("Url", uploadedImage?.secure_url)
+            console.log("public_id", uploadedImage?.public_id)
+            array_files.push({
+                url: uploadedImage?.secure_url,
+                public_id: uploadedImage?.public_id}
+            );
         }
     }
 
@@ -64,45 +75,57 @@ const editPost = asyncHandler(async (req, res) => {
     const userId = req.user?._id
 
     if(!userId)
-        throw ApiError(401, "You are unauthorized to perform the action", new Error("userID not found"), "editPost: videos.controller.js")
+        throw new ApiError(401, "You are unauthorized to perform the action", new Error("userID not found"), "editPost: videos.controller.js")
     if(!postId)
-        throw ApiError(400, "postId required", new Error("Could not find post id"), "editPost: videos.controller.js")
+        throw new ApiError(400, "postId required", new Error("Could not find post id"), "editPost: videos.controller.js")
 
 
-    const existingPost = await Post.findById(postId);
+    const existingPost = await Post.findOne({
+        _id: postId,
+        ownersId: userId
+    });
     if(!existingPost)
-        throw ApiError(400, "No post found", new Error("Post with passed id does not exist"), "editPost: videos.controller.js")
+        throw new ApiError(400, "No post found", new Error("Post with passed id does not exist"), "editPost: videos.controller.js")
 
-    const updatedPost = Post.findbyIdAndUpdate(postId, {
+    const updatedPost = Post.findByIdAndUpdate(postId, {
             title: title || existingPost.title,
             description: description || existingPost.description,
         },
-    { new: true })
+    { new: true })._update
+
+    console.log("updatedPost : ", updatedPost)
 
     if(!updatedPost)
-        throw ApiError(500, "Some internal Error Occurred", new Error("Failed to update post"), "editPost: videos.controller.js")
+        throw new ApiError(500, "Some internal Error Occurred", new Error("Failed to update post"), "editPost: videos.controller.js")
 
     return res
         .status(200)
-        .ApiResponse(200, "Poast Successfuly Updated", updatedPost)
+        .json(new ApiResponse(200, "Post Successfuly Updated", updatedPost))
 })
 
 const deletePost = asyncHandler(async (req, res) => {
     const {postId} = req.body
     const userId = req.user?._id
 
+    console.log("postId", postId)
+    console.log("userId", userId)
+
     if(!postId)
-        throw ApiError(400, "postId required", new Error("Could not find post id"), "deletePost: videos.controller.js")
+        throw new ApiError(400, "postId required", new Error("Could not find post id"), "deletePost: videos.controller.js")
 
     if(!userId)
-        throw ApiError(401, "You are unauthorized to perform the action", new Error("userID not found"), "deletePost: videos.controller.js")
+        throw new ApiError(401, "You are unauthorized to perform the action", new Error("userID not found"), "deletePost: videos.controller.js")
 
-    const deletedPost = await Post.findOneAndDelete({ _id: postId, user: userId });
+    const deletedPost = await Post.findOneAndDelete({ 
+        _id: postId,
+        ownersId: userId
+     });
     if (!deletedPost) 
-        throw ApiError(404, "Post not found or already deleted");
+        throw new ApiError(404, "Post not found or already deleted");
 
-    for (const url of deletedPost.fileUrl) {
-        await deleteFromCloudinary(url);
+    for (const {url, public_id} of deletedPost.fileUrl) {
+        const resource_type = url.includes("image")? "image" : "video"
+        await deleteFromCloudinary(public_id, resource_type);
     }
 
     return res
@@ -115,6 +138,12 @@ const deletePost = asyncHandler(async (req, res) => {
     from the cloudinary first, and may be due to some error (network error) databse operation fails, then the post contains invalid 
     files links, this is harmful and reverse is not.
     ALTERNATIVE: we can use transactions
+
+    NOTE: Note how we are performing validation when deletign a post, we are finding a post that matched both
+        1. postId 
+        2. userId
+    So, if some user tries to delete a post that he has not created, he will get error post not found.
+    For this particulat validation, we have one more approach
 */
 
 export {
