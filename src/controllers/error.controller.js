@@ -1,6 +1,5 @@
 import asyncHandler from "../utils/asyncHandler.utils.js";
-import ApiError from "../utils/ApiError.utils.js";
-
+import ApiError from "../utils/apiError.utils.js";
 const syncErrorController = (req, res) => {
     throw new ApiError(400, "Custom Error for testing", "Error handeled successfuly", "syncErrorController: error.controller.js")
 }

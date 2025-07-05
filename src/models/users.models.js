@@ -4,7 +4,6 @@ dotenv.config()
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
-import { nextTick } from 'process';
 
 const userSchema = mongoose.Schema({
     userName : {
@@ -37,7 +36,11 @@ const userSchema = mongoose.Schema({
         type : String, 
         default: null
     },
-    refreshToken: String
+    refreshToken: String,
+    subscriberCount: {
+        type: Number,
+        default: 0
+    }
 }, {timestamps: true,})
 
 export const User = new mongoose.model('User', userSchema);

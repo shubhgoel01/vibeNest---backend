@@ -3,7 +3,7 @@ dotenv.config()
 
 import asyncHandler from "../utils/asyncHandler.utils.js"
 import { User } from "../models/users.models.js"
-import ApiError from "../utils/ApiError.utils.js"
+import ApiError from "../utils/apiError.utils.js"
 import ApiResponse from "../utils/ApiResponse.utils.js"
 import jwt from "jsonwebtoken"
 

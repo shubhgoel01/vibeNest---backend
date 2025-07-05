@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-const videoSchema = mongoose.Schema({
+const postSchema = mongoose.Schema({
     title: {
         type: String,
         required: true,
@@ -11,19 +11,15 @@ const videoSchema = mongoose.Schema({
         required: true,
         trim: true,
     },
-    videoUrl: {
-        type: String,
-        required: true,
-    },
-    thumbnailUrl: {
+    fileUrl: [{
         type: String,
         default: null,
-    },
-    ownersId:[{
+    }],
+    ownersId:{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true,
-    }] ,
+    } ,
     views: {
         type: Number,
         default: 0,
@@ -37,6 +33,18 @@ const videoSchema = mongoose.Schema({
         enum: ['public', 'private', 'unPublished'],
         default: 'public',
     },
+    subscribers : {
+        type : Number,
+        default: 0
+    },
+    likesCount: {
+        type: Number,
+        default: 0
+    },
+    commentsCount: {
+        type: Number,
+        default: 0
+    }
 }, { timestamps: true });
 
-export const Video = mongoose.model('Video', videoSchema);
+export const Post = mongoose.model('Post', postSchema);
