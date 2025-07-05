@@ -23,7 +23,7 @@ export const connectDB = async () => {
     console.log("Database connected successfully:", response.connection.name);
 
     //Create collections
-    await createCollections([Comment]);
+    await createCollections([Comment, Like]);
 
 }
 

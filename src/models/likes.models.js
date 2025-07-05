@@ -1,12 +1,12 @@
 import mongoose from "mongoose";
 
 const likesSchema = mongoose.Schema({   
-    videoId: {
+    postId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Video',
         required: true,
     },
-    userId: {
+    ownerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true,
