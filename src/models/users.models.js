@@ -37,7 +37,7 @@ const userSchema = mongoose.Schema({
         default: null
     },
     refreshToken: String,
-    subscriberCount: {
+    followersCount: {
         type: Number,
         default: 0
     }

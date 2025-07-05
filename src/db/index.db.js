@@ -3,6 +3,7 @@ dotenv.config();
 import mongoose from "mongoose";
 import ApiError from "../utils/apiError.utils.js";
 import { Comment } from "../models/comments.models.js";
+import { Like } from "../models/likes.models.js";
 
 const createCollections = async (models) => {
   await Promise.all(

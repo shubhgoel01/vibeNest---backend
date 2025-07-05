@@ -106,3 +106,8 @@ const unlikeController = asyncHandler (async (req, res) => {
 
     }
 })
+
+export {
+    likeController,
+    unlikeController
+}

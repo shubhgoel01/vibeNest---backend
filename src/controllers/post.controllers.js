@@ -123,3 +123,5 @@ export {
     editPost,
     deletePost
 }
+
+//TODO: getAllPosts, getmyPosts, getPostsByID, (include functionalities like, is post liked?, ), changeStatusOfPost(unPublished, private, public)

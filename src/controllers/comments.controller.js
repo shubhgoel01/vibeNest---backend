@@ -4,7 +4,7 @@ import { Comment } from "../models/comments.models.js";
 import ApiResponse from "../utils/ApiResponse.utils.js";
 import { Post } from "../models/posts.models.js";
 
-const addComment = asyncHandler( async (req, res) => {
+const addCommentController = asyncHandler( async (req, res) => {
     const {postId, content} = req.body
     const userId = req.user?._id
 
@@ -60,4 +60,4 @@ const addComment = asyncHandler( async (req, res) => {
     }
 })
 
-export default addComment
+export default addCommentController
