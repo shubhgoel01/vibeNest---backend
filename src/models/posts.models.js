@@ -33,10 +33,6 @@ const postSchema = mongoose.Schema({
         enum: ['public', 'private', 'unPublished'],
         default: 'public',
     },
-    subscribers : {
-        type : Number,
-        default: 0
-    },
     likesCount: {
         type: Number,
         default: 0
