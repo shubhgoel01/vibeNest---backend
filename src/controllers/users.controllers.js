@@ -6,6 +6,7 @@ import { User } from "../models/users.models.js"
 import ApiError from "../utils/apiError.utils.js"
 import ApiResponse from "../utils/ApiResponse.utils.js"
 import jwt from "jsonwebtoken"
+import uploadOnCloudinary from "../utils/cloudinary.utils.js"
 
 
 const registerController = asyncHandler(async (req, res) => {
@@ -31,8 +32,8 @@ const registerController = asyncHandler(async (req, res) => {
     if(!avatarLocalStorageUrl)
         throw new ApiError(500, "Some internal error occurred", new Error("avatarLocalStorageUrl not found"), "registerController: users.controllers.js")
 
-    //TODO upload to cloudinary and get the avatarLink
-    let avatarUrl
+    let avatarUrl = uploadOnCloudinary(avatarLocalStorageUrl)
+
     const newUser = User({
         userName,
         password,

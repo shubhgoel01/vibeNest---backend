@@ -4,6 +4,7 @@ import asyncHandler from '../utils/asyncHandler.utils.js'
 import ApiError from '../utils/apiError.utils.js'
 import { Post } from '../models/posts.models.js';
 import ApiResponse from '../utils/ApiResponse.utils.js';
+import uploadOnCloudinary from '../utils/cloudinary.utils.js';
 
 const uploadPost = asyncHandler(async (req, res) => {
     const { title, description } = req.body;
@@ -28,10 +29,8 @@ const uploadPost = asyncHandler(async (req, res) => {
 
     if (req.files?.videos?.length > 0) {
         for (const file of req.files.videos) {
-            const uploadedVideo = await uploadOnCloudinary(file.path, "video");
-            if (!uploadedVideo?.secure_url) {
-                throw new ApiError(500, "Video upload failed", new Error("Cloudinary upload failed"), 'uploadVideo: videos.controllers.js');
-            }
+            const uploadedVideo = await uploadOnCloudinary(file.path);
+            
             array_files.push(uploadedVideo.secure_url);
         }
     }
