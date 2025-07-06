@@ -7,6 +7,8 @@ import ApiResponse from '../utils/ApiResponse.utils.js';
 import {uploadOnCloudinary} from '../utils/cloudinary.utils.js';
 import mongoose from "mongoose"
 import { deleteFromCloudinary } from "../utils/cloudinary.utils.js";
+import { Like } from "../models/likes.models.js";
+import { User } from "../models/users.models.js";
 
 const uploadPost = asyncHandler(async (req, res) => {
     const { title, description } = req.body;
@@ -71,7 +73,7 @@ const uploadPost = asyncHandler(async (req, res) => {
 });
 
 const editPost = asyncHandler(async (req, res) => {
-    const {title, description, postId} = req.body
+    const {title, description, postId, status} = req.body
     const userId = req.user?._id
 
     if(!userId)
@@ -90,6 +92,7 @@ const editPost = asyncHandler(async (req, res) => {
     const updatedPost = Post.findByIdAndUpdate(postId, {
             title: title || existingPost.title,
             description: description || existingPost.description,
+            status: status || existingPost.status
         },
     { new: true })._update
 
@@ -146,10 +149,66 @@ const deletePost = asyncHandler(async (req, res) => {
     For this particulat validation, we have one more approach
 */
 
+const getPostsByUserName = asyncHandler(async(req, res) => {
+    const userName = req.params?.userName
+    const user = await User.findOne({userName: userName})    
+    
+    if(!user)
+        throw ApiError(400, "Invalid Request", new Error("No user found with with userName"), "getPostsByUserName: post.controllers.js")
+    
+    const myPosts = (req.user?._id === user._id)? "private" : "public"
+    
+    const result = await Post.aggregate([
+        {
+            $match: {ownersId: mongoose.Types.ObjectId(user?._id), 
+                status: {
+                    $in: ["public", myPosts]
+                }
+            },
+        },
+        {
+            $lookup: {
+                from: "likes",
+                localField: "_id",
+                foreignField: "postId",
+                as: "like",
+                pipeline: [
+                    {
+                        $match: {ownerId: mongoose.Types.ObjectId(req.user?._id)}
+                    },
+                    {
+                        $project: {
+                            _id: 1
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            $addFields: {
+                isLiked: {
+                    $cond: {
+                        if: {$size: "$like"},
+                        then: true,
+                        else: false
+                    }
+                }
+            }
+        }     
+    ])
+    console.log(result)
+    return res  
+    .status(200)
+    .json(new ApiResponse(200, `Posts fetched for user ${userName}`,result))
+})
+
 export {
     uploadPost,
     editPost,
-    deletePost
+    deletePost,
+    getPostsByUserName
 }
 
-//TODO: getAllPosts, getmyPosts, getPostsByID, (include functionalities like, is post liked?, ), changeStatusOfPost(unPublished, private, public)
+//TODO: getAllPosts, getPostsByUserName, (include functionalities like, is post liked? by the user also handle when user is loogedIn and not loggedIn), changeStatusOfPost(unPublished, private, public)
+
+//NEED TO UPDATE getPostsByUserName, there are many inconsistencies that can ause problems in frontEnd

@@ -27,10 +27,6 @@ const postSchema = mongoose.Schema({
         type: Number,
         default: 0,
     },
-    isPublished: {
-        type: Boolean,
-        default: true,
-    },
     status: {
         type: String,
         enum: ['public', 'private', 'unPublished'],

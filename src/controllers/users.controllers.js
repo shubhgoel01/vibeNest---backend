@@ -7,6 +7,8 @@ import ApiError from "../utils/apiError.utils.js"
 import ApiResponse from "../utils/ApiResponse.utils.js"
 import jwt from "jsonwebtoken"
 import {uploadOnCloudinary} from "../utils/cloudinary.utils.js"
+import { FollowRequest } from "../models/followRequests.models.js"
+import { Follower } from "../models/followers.models.js"
 
 
 const registerController = asyncHandler(async (req, res) => {
@@ -178,12 +180,89 @@ const logOutUser = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, {}, "User logged Out Successfuly"))
 })
 
+const getUserDetailsByUserIdOrUserName = asyncHandler(async(req, res) => { 
+    const loggedInUserId = req.user?._id
+    if(!loggedInUserId)
+        throw ApiError(401, "Please Login To Continue", new Error("User is not-logged in"), "getUserDetailsByUserIdOrUserName: users.controllers.js")
+
+    const searchUserId_UserName = req.params.userId || req.params.userName
+    if(!searchUserId_UserName)
+        throw ApiError(404, "Invalid Request", new Error("searchUserId_UserName id not found"), "getUserDetailsByUserIdOrUserName: users.controllers.js")
+    
+    const searchedUser = await User.aggregate([
+        {
+            $match: {
+                $or: [
+                    { _id: searchUserId_UserName },
+                    { userName: searchUserId_UserName }
+                ]
+            }
+        },
+        {
+            $lookup: {
+                from: "followers",
+                localField: "_id",
+                foreignField: "userId",
+                as: "followers"
+            }
+        },
+        {
+            $lookup: {
+                from: "followrequests",
+                localField: "_id",
+                foreignField: "userId",
+                as: "followRequests"
+            }
+        },
+        {
+            $addFields: {
+                isFollowedByLoggedInUser: {
+                    $cond: {
+                        if: {$size: "$followers"},
+                        then: true,
+                        else: false
+                    }
+                },
+                isFollowRequestSentByLoggedInUser: {
+                    $eq: ["followRequests[0].requestedByUserId", loggedInUserId]
+                    /*
+                        This line is very important, and critical, It should be noted that 'followers' and 'followRequests' can contain atmost 1 element
+                        Now we have two cases
+                            1. User contains one value - then clearly line executed safely
+                            2. Array is empty - followRequests[0].requestedByUserId resolves to undefined, not causing/throwing any error
+                        Also, we have already checked that 'loggedInUserId' is not null or undefined
+
+                        NOTE: "followRequests?[0].requestedByUserId"    give error here
+                    */
+                },
+                isFollowRequestReceivedByLoggedInUser: {
+                    $eq: ["followRequests[0].requestedToUserId", loggedInUserId]
+                }
+            }
+        },
+        {
+            $project: {
+                password: 0,
+                refreshToken: 0,
+                followers: 0,
+                followRequests: 0
+            }
+        }
+    ])
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, "User Fetched Succesfully", searchedUser))
+        
+})
+
 export {
     registerController,
     loginController,
     refreshAccessToken,
-    logOutUser
+    logOutUser,
+    getUserDetailsByUserIdOrUserName
 }
 
 
-//TODO =>  getUserDetailsByID (include functionalities like isFollowed ), getMyDetails, profileUpdateFunctions
+//TODO =>  getUserDetailsByID (include functionalities like isFollowed), getMyDetails, profileUpdateFunctions
