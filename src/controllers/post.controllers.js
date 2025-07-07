@@ -163,109 +163,193 @@ const deletePost = asyncHandler(async (req, res) => {
 
 const getPostsByUserNameOrUserID = asyncHandler(async(req, res) => {
     const userName_Id = req.params?.userName_Id
-    let query = undefined
-    
-    if(! req.user?._id)
-        throw new ApiError(400, "Please Login", new Error("User is not logged in"), "getPostsByUserName: post.controllers.js")
-    if(!userName_Id)
-        throw new ApiError(404, "Invalid Request", new Error("userName_Id id not found"), "getPostsByUserNameOrUserID: post.controllers.js")
+    let query = undefined, query2 = undefined
+
+    const {pageLimit, lastPostId, lastCreatedAt} = req.query
+    console.log(pageLimit)
+    console.log(lastPostId)
+    console.log(lastCreatedAt)
+
     
     if(mongoose.Types.ObjectId.isValid(userName_Id))
         query = {_id: new mongoose.Types.ObjectId(userName_Id)}
     else query = {userName: userName_Id}
 
-    const user = await User.findOne(query)     
-    
-    if(!user)
-        throw new ApiError(400, "Invalid Request", new Error("No user found with with userName"), "getPostsByUserName: post.controllers.js")
-    
+    const user = await User.findOne(query)  
     const myPosts = (req.user?._id === user._id)? "private" : "public"
+
+    query2 = (!lastPostId) ? 
+                {
+                ownerId: user._id, 
+                status: {
+                    $in: ["public", myPosts]
+                    }
+                }:
+                {
+                    ownerId: user._id, 
+                    status: {
+                        $in: ["public", myPosts]
+                    },
+                    $or: [
+                        { createdAt: { $lt: new Date(lastCreatedAt) } },
+                        { createdAt: new Date(lastCreatedAt), _id: { $lt: lastPostId } }
+                    ]
+                }
+    console.log(query2)
     
     const result = await Post.aggregate([
         {
-            $match: {ownersId: new mongoose.Types.ObjectId(user?._id), 
-                status: {
-                    $in: ["public", myPosts]
-                }
-            },
+            $match: query2
         },
         {
-            $lookup: {
-                from: "likes",
-                localField: "_id",
-                foreignField: "postId",
-                as: "like",
-                pipeline: [
-                    {
-                        $match: {ownerId: new mongoose.Types.ObjectId(req.user?._id)}
-                    },
-                    {
-                        $project: {
-                            _id: 1
-                        }
-                    }
-                ]
-            }
+            $sort: {createdAt: -1, _id: -1}
+        },
+        {
+            $limit: Number(pageLimit)
+        },
+        // {
+        //     $lookup: {
+        //         from: "likes",
+        //         localField: "_id",
+        //         foreignField: "postId",
+        //         as: "like",
+        //         pipeline: [
+        //             {
+        //                 $match: {ownerId: new mongoose.Types.ObjectId(req.user?._id)}
+        //             },
+        //             {
+        //                 $project: {
+        //                     _id: 1
+        //                 }
+        //             }
+        //         ]
+        //     }
+        // },
+        // {
+        //     $lookup: {
+        //         from: "users",
+        //         localField: "ownerId",
+        //         foreignField: "_id",
+        //         as: "ownerDetails",
+        //         pipeline: [
+        //             {
+        //                 $project: {
+        //                     _id: 1,
+        //                     userName: 1,
+        //                     avatar: 1
+        //                 }
+        //             }
+        //         ]
+        //     }
+        // },
+        // {
+        //     $unwind: "$ownerDetails"    // NOTE: by defualt, lookup returns an array, but i am sure there is only one element and 
+        //     //in my result i awnt to store the object directly, so flattenned the ownerDetails
+        // },
+        // {
+        //     $addFields: {
+        //         isLiked: {
+        //             $cond: {
+        //                 if: {$size: "$like"},
+        //                 then: true,
+        //                 else: false
+        //             }
+        //         }
+        //     }
+        // },
+        // {
+        //     $project: {
+        //         "_id" : 1,
+        //         "title": 1,
+        //         "description": 1,
+        //         "fileUrl": 1,
+        //         "ownerId": 1,
+        //         "views": 1,
+        //         "likesCount": 1,
+        //         "commentsCount": 1,
+        //         "createdAt": 1,
+        //         "isLiked": 1,
+        //         "ownerDetails": 1
+        //     }
+        // }    
+    ])
+    console.log(result)
+
+    const resultLength = result.length
+    const metaData = {
+        pageLimit: pageLimit,
+        lastPostId: (resultLength<pageLimit)? null : result[resultLength-1]._id,
+        lastCreatedAt:  (resultLength<pageLimit)? null : result[resultLength-1].createdAt,
+    }
+
+    return res  
+    .status(200)
+    .json(new ApiResponse(
+        200
+        ,`Posts fetched for user ${user.userName || userName_Id}`
+        ,{result, metaData}))
+})
+
+const getAllPosts = asyncHandler(async (req, res) => {
+
+    const {pageLimit, lastCreatedAt, lastPostId} = req.query
+
+
+    const query = (!lastCreatedAt)? {} : {
+        $or: [
+            { createdAt: { $lt: new Date(lastCreatedAt) } },
+            { createdAt: new Date(lastCreatedAt), _id: { $lt: lastPostId } }
+        ]
+    }
+
+    const result = await Post.aggregate([
+        { 
+            $match: query
+        },
+        {
+            $sort: {createdAt: -1, _id: -1}
+        },
+        {
+            $limit: Number(pageLimit)
         },
         {
             $lookup: {
                 from: "users",
-                localField: "ownersId",
+                localField: "ownerId",
                 foreignField: "_id",
                 as: "ownerDetails",
                 pipeline: [
                     {
                         $project: {
-                            _id: 1,
-                            userName: 1,
-                            avatar: 1
+                            "userName": 1,
+                            "avatar": 1,
+                            "_id": 1
                         }
                     }
                 ]
             }
-        },
-        {
-            $unwind: "$ownerDetails"    // NOTE: by defualt, lookup returns an array, but i am sure there is only one element and 
-            //in my result i awnt to store the object directly, so flattenned the ownerDetails
-        },
-        {
-            $addFields: {
-                isLiked: {
-                    $cond: {
-                        if: {$size: "$like"},
-                        then: true,
-                        else: false
-                    }
-                }
-            }
-        },
-        {
-            $project: {
-                "_id" : 1,
-                "title": 1,
-                "description": 1,
-                "fileUrl": 1,
-                "ownerId": 1,
-                "views": 1,
-                "likesCount": 1,
-                "commentsCount": 1,
-                "createdAt": 1,
-                "isLiked": 1,
-                "ownerDetails": 1
-            }
-        }    
+        }
     ])
-    console.log(result)
-    return res  
-    .status(200)
-    .json(new ApiResponse(200, `Posts fetched for user ${user.userName || userName_Id}`, ...result))
+    const resultLength = result.length
+    const metaData = {
+        pageLimit: pageLimit,
+        lastCreatedAt: resultLength<pageLimit? null : result[result.length-1].createdAt,
+        lastPostId: resultLength<pageLimit? null : result[result.length-1]._id
+    }
+
+    return res.status(200).json(new ApiResponse(
+        200,
+        "Next Page fetched Successfully",
+        {result, metaData}
+    ))
 })
 
 export {
     uploadPost,
     updatePost,
     deletePost,
-    getPostsByUserNameOrUserID
+    getPostsByUserNameOrUserID,
+    getAllPosts
 }
 
 //TODO: getAllPosts, getPostsByUserName, (include functionalities like, is post liked? by the user also handle when user is loogedIn and not loggedIn), changeStatusOfPost(unPublished, private, public)
