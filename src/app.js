@@ -30,7 +30,7 @@ app.use("/comment/v1" ,commentRouter)
 app.use("/like/v1" ,likeRouter)
 app.use("/post/v1", postRouter)
 app.use("/user/v1", userRouter)
-app.use("/user/v1", followRouter)
+app.use("/follow/v1", followRouter)
 
 
 //Import Custom Middlewares

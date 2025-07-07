@@ -11,10 +11,10 @@ import verifyUser from "../middlewares/auth.middleware.js"
 
 const followRouter = express.Router()
 
-followRouter.route("/users/follow-requests").post(verifyUser, createFollowRequest);
+followRouter.route("/users/follow-requests/:userId").post(verifyUser, createFollowRequest);
 followRouter.route("/follow-requests/accept/:requestId").patch(verifyUser, acceptFollowRequest);
 followRouter.route("/follow-requests/reject/:requestId").patch(verifyUser, rejectFollowRequest);
-followRouter.route("/followers").delete(verifyUser, removeFollower);
+followRouter.route("/followers/:userId").delete(verifyUser, removeFollower);
 followRouter.route("/users/followers").get(verifyUser, getAllFollowersForUser);
 followRouter.route("/users/followers/count").get(verifyUser, getAllFollowersCount);
 followRouter.route("/follow-requests/sent").get(verifyUser, getAllFollowRequestsSent);

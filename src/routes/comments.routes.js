@@ -1,5 +1,5 @@
 import express from "express"
-import addCommentController from "../controllers/comments.controller.js"
+import {addCommentController} from "../controllers/comments.controller.js"
 import verifyUser from "../middlewares/auth.middleware.js"
 import { getAllCommentsForPost } from "../controllers/comments.controller.js"
 import { getMyAllComments } from "../controllers/comments.controller.js"

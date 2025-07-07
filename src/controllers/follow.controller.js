@@ -3,6 +3,7 @@ import ApiError from "../utils/apiError.utils.js"
 import { FollowRequest } from "../models/followRequests.models.js"
 import ApiResponse from "../utils/ApiResponse.utils.js"
 import { Follower } from "../models/followers.models.js"
+import mongoose from "mongoose"
 
 const createFollowRequest = asyncHandler(async (req, res) => {
     const loggedInUserId = req.user?._id
@@ -61,9 +62,10 @@ const acceptFollowRequest = asyncHandler(async (req, res) => {
 
         if (!followRequest) throw new ApiError(400,"Invalid Request",new Error("No follow request found or unauthorized action"),"acceptFollowRequest")
         
-        const requestingUserId = followRequest.requestedByUserId
+        const requestingUserId = followRequest?.requestedByUserId
+        console.log("requestingUserId", requestingUserId)
 
-        await Follower.create([{userId1: loggedInUserId,user2Id: requestingUserId}],{ session })
+        await Follower.create([{user1Id: loggedInUserId,user2Id: requestingUserId}],{ session })
 
         await session.commitTransaction()
 
@@ -72,6 +74,7 @@ const acceptFollowRequest = asyncHandler(async (req, res) => {
             .json(new ApiResponse(200, "Follow request accepted successfully", { isFollowed: true }))
     } 
     catch (error) {
+        console.log(error)
         await session.abortTransaction()
         throw new ApiError(500,"An internal error occurred",error,"acceptFollowRequest: followers.controller.js")
     } 
@@ -108,7 +111,10 @@ const rejectFollowRequest = asyncHandler(async (req, res) => {
 
 const removeFollower = asyncHandler(async (req, res) => {
     const loggedInUserId = req.user?._id;
-    const { userId: targetUserId } = req.params;
+    const targetUserId = req.params.userId;
+
+    console.log("loggedInUserId", loggedInUserId)
+    console.log("targetUserId", targetUserId)
 
     if (!loggedInUserId) 
         throw new ApiError(401,"Unauthorized request",new Error("User not logged in"),"removeFollower: follow.controller.js");
@@ -118,14 +124,14 @@ const removeFollower = asyncHandler(async (req, res) => {
 
     let response 
     response = await Follower.findOneAndDelete({
-        userId1: targetUserId, // they are following me
-        user2Id: loggedInUserId
+        user1Id: new mongoose.Types.ObjectId(targetUserId), // they are following me
+        user2Id: new mongoose.Types.ObjectId(loggedInUserId)
     });
 
     if (!response) {
         response = await Follower.findOneAndDelete({
-            userId1: loggedInUserId, // I am following them
-            user2Id: targetUserId
+            user1Id: new mongoose.Types.ObjectId(loggedInUserId), // I am following them
+            user2Id: new mongoose.Types.ObjectId(targetUserId)
         });
     }
 
@@ -149,8 +155,8 @@ const getAllFollowersForUser = asyncHandler(async(req, res) => {
     const result = await Follower.aggregate([
         { $match: { 
             $or: [
-                { user1Id: userId },
-                { user2Id: userId }
+                { user1Id: loggedInUserID },
+                { user2Id: loggedInUserID }
             ]}
         },
         {
@@ -185,7 +191,7 @@ const getAllFollowersForUser = asyncHandler(async(req, res) => {
             $unwind: "$userDetails"
         },
         {
-            $sort: { "$userDetails.userName": 1 }
+            $sort: { "userDetails.userName": 1 }
         },
         {
             $project: {
@@ -200,7 +206,8 @@ const getAllFollowersForUser = asyncHandler(async(req, res) => {
 //We can also add pagination to this
  
 const getAllFollowersCount = asyncHandler(async(req, res) => {
-    const loggedInUserId = req.params.userId
+    const loggedInUserId = req.user?._id
+    console.log(loggedInUserId)
 
     // const result = Follower.find({       //Getting error here, do not know why, saw from (count in mongodb)
     //     $or: [
@@ -218,7 +225,7 @@ const getAllFollowersCount = asyncHandler(async(req, res) => {
 
     //https://mongoosejs.com/docs/api/query.html#Query.prototype.countDocuments()
 
-    return res.status(200).json(ApiResponse(200, "Followers Counted Successfully", {followersCount: result}))
+    return res.status(200).json(new ApiResponse(200, "Followers Counted Successfully", {followersCount: result}))
 })
 
 const getAllFollowRequestsSent = asyncHandler(async(req, res)=>{
@@ -297,6 +304,10 @@ const allFollowRequestsReceived = asyncHandler(async(req, res)=>{
     ])
 
     return res.status(200).json(new ApiResponse(200, "Data fetched", result))
+})
+
+const removeFollowRequest = asyncHandler(async(req, res) => {
+    
 })
 
 export {
