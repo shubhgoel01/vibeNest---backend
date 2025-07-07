@@ -9,6 +9,7 @@ import jwt from "jsonwebtoken"
 import {uploadOnCloudinary} from "../utils/cloudinary.utils.js"
 import { FollowRequest } from "../models/followRequests.models.js"
 import { Follower } from "../models/followers.models.js"
+import mongoose from "mongoose"
 
 
 const registerController = asyncHandler(async (req, res) => {
@@ -182,21 +183,25 @@ const logOutUser = asyncHandler(async (req, res) => {
 
 const getUserDetailsByUserIdOrUserName = asyncHandler(async(req, res) => { 
     const loggedInUserId = req.user?._id
+    let query = undefined
+
     if(!loggedInUserId)
         throw new ApiError(401, "Please Login To Continue", new Error("User is not-logged in"), "getUserDetailsByUserIdOrUserName: users.controllers.js")
 
     const searchUserId_UserName = req.params?.userId_Name
-    // Use a logger here if needed, e.g., logger.info("searchUserId_UserName", searchUserId_UserName)
+    if(!searchUserId_UserName)
         throw new ApiError(404, "Invalid Request", new Error("searchUserId_UserName id not found"), "getUserDetailsByUserIdOrUserName: users.controllers.js")
     
+    if(mongoose.Types.ObjectId.isValid(searchUserId_UserName))
+        query = {_id: new mongoose.Types.ObjectId(searchUserId_UserName)}
+    else query = { userName: searchUserId_UserName }
+
+    //Note: If we pass both the queries using $or operator, then it is fine BUT {_id: searchUserId_UserName} throws an error if searchUserId_UserName is not a valid ObjectId
+    //Hence update code like this
+
     const searchedUser = await User.aggregate([
         {
-            $match: {
-                $or: [
-                    { _id: searchUserId_UserName },
-                    { userName: searchUserId_UserName }
-                ]
-            }
+            $match: query
         },
         {
             $lookup: {
@@ -260,7 +265,7 @@ const getUserDetailsByUserIdOrUserName = asyncHandler(async(req, res) => {
 
     return res
         .status(200)
-        .json(new ApiResponse(200, "User Fetched Succesfully", searchedUser))
+        .json(new ApiResponse(200, "User Fetched Succesfully", ...searchedUser))
         
 })
 

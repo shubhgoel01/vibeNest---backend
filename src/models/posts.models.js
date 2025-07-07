@@ -18,7 +18,7 @@ const postSchema = mongoose.Schema({
         trim: true,
     },
     fileUrl:[fileSchema],
-    ownersId:{
+    ownerId:{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true,

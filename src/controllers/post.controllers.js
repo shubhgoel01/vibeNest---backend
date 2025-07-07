@@ -9,6 +9,7 @@ import mongoose from "mongoose"
 import { deleteFromCloudinary } from "../utils/cloudinary.utils.js";
 import { Like } from "../models/likes.models.js";
 import { User } from "../models/users.models.js";
+import { Comment } from "../models/comments.models.js";
 
 const uploadPost = asyncHandler(async (req, res) => {
     const { title, description, status = 'public'} = req.body;
@@ -33,6 +34,7 @@ const uploadPost = asyncHandler(async (req, res) => {
 
     if (req.files?.videos?.length > 0) {
         for (const file of req.files.videos) {
+            console.log("Uplaoding videos on cloudinary")
             const uploadedVideo = await uploadOnCloudinary(file.path);
             
             array_files.push({
@@ -44,7 +46,9 @@ const uploadPost = asyncHandler(async (req, res) => {
 
     if (req.files?.images?.length > 0) {
         for (const file of req.files.images) {
-            const uploadedImage = await uploadOnCloudinary(file.path, "image");
+            console.log("Uplaoding Images on cloudinary")
+            const uploadedImage = await uploadOnCloudinary(file.path);
+            console.log(uploadedImage)
             
             array_files.push({
                 url: uploadedImage?.secure_url,
@@ -57,7 +61,7 @@ const uploadPost = asyncHandler(async (req, res) => {
         title,
         description,
         fileUrl: array_files,
-        ownersId: userId,
+        ownerId: userId,
         status: status
     });
 
@@ -71,33 +75,39 @@ const uploadPost = asyncHandler(async (req, res) => {
 });
 
 const updatePost = asyncHandler(async (req, res) => {
-  const { title, description, postId, status } = req.body;
-  const userId = req.user?._id;
+    const { title, description, postId, status } = req.body;
+    const userId = req.user?._id;
+    console.log(userId)
 
-  if (!userId)
-    throw new ApiError(401, "You are unauthorized to perform the action", new Error("userID not found"), "editPost: videos.controller.js");
+    if (!userId)
+        throw new ApiError(401, "You are unauthorized to perform the action", new Error("userID not found"), "editPost: videos.controller.js");
 
-  if (!postId)
-    throw new ApiError(400, "postId required", new Error("Could not find post id"), "editPost: videos.controller.js");
+    if (!postId)
+        throw new ApiError(400, "postId required", new Error("Could not find post id"), "editPost: videos.controller.js");
 
-  // Only include fields provided in the request body
-  const updateFields = {};
-  if (title) updateFields.title = title;
-  if (description) updateFields.description = description;
-  if (status) updateFields.status = status;
+    // Only include fields provided in the request body
+    const updateFields = {};
+    if (title) updateFields.title = title;
+    if (description) updateFields.description = description;
+    if (status) updateFields.status = status;
 
-  const updatedPost = await Post.findOneAndUpdate(
-    { _id: postId, ownersId: userId },
-    updateFields,
-    { new: true }
-  ).select("-__v -updatedAt");
+    const updatedPost = await Post.findOneAndUpdate(
+        { _id: postId, ownerId: userId },
+        updateFields,
+        { new: true }
+    ).select("-__v -updatedAt").lean();
 
-  if (!updatedPost)
-    throw new ApiError(404, "No post found or you are not authorized", new Error("Either post does not exist or user is not the owner"), "editPost: videos.controller.js");
+    if (!updatedPost)
+        throw new ApiError(404, "No post found or you are not authorized", new Error("Either post does not exist or user is not the owner"), "editPost: videos.controller.js");
+  
+    const ownerDetails = await User.findById(new mongoose.Types.ObjectId(updatedPost.ownerId)).select("-email -password -refreshToken -__v -createdAt -updatedAt -followersCount -fullName").lean()
+    updatedPost.ownerDetails = ownerDetails
+    console.log(updatedPost)
+    console.log(ownerDetails)
 
-  return res.status(200).json(
-    new ApiResponse(200, "Post Successfully Updated", updatedPost)
-  );
+    return res.status(200).json(
+        new ApiResponse(200, "Post Successfully Updated", updatedPost)
+    );
 });
 
 /*
@@ -117,11 +127,14 @@ const deletePost = asyncHandler(async (req, res) => {
         throw new ApiError(401, "You are unauthorized to perform the action", new Error("userID not found"), "deletePost: videos.controller.js")
 
     const deletedPost = await Post.findOneAndDelete({ 
-        _id: postId,
-        ownersId: userId
+        _id: new mongoose.Types.ObjectId(postId),
+        ownerId: new mongoose.Types.ObjectId(userId)
      });
     if (!deletedPost) 
         throw new ApiError(404, "Post not found or already deleted");
+
+    await Comment.deleteMany({postId: postId})
+    await Like.deleteMany({postId: postId})
 
     for (const {url, public_id} of deletedPost.fileUrl) {
         const resource_type = url.includes("image")? "image" : "video"
@@ -144,18 +157,24 @@ const deletePost = asyncHandler(async (req, res) => {
         2. userId
     So, if some user tries to delete a post that he has not created, he will get error post not found.
     For this particulat validation, we have one more approach
+
+    Also its crucial to delete all the likes and comments related to that post
 */
 
 const getPostsByUserNameOrUserID = asyncHandler(async(req, res) => {
     const userName_Id = req.params?.userName_Id
-    const user = await User.findOne(
-        {
-            $or: [
-                {_id: userName_Id},
-                {userName: userName_Id}
-            ]
-        }
-    )    
+    let query = undefined
+    
+    if(! req.user?._id)
+        throw new ApiError(400, "Please Login", new Error("User is not logged in"), "getPostsByUserName: post.controllers.js")
+    if(!userName_Id)
+        throw new ApiError(404, "Invalid Request", new Error("userName_Id id not found"), "getPostsByUserNameOrUserID: post.controllers.js")
+    
+    if(mongoose.Types.ObjectId.isValid(userName_Id))
+        query = {_id: new mongoose.Types.ObjectId(userName_Id)}
+    else query = {userName: userName_Id}
+
+    const user = await User.findOne(query)     
     
     if(!user)
         throw new ApiError(400, "Invalid Request", new Error("No user found with with userName"), "getPostsByUserName: post.controllers.js")
@@ -226,12 +245,11 @@ const getPostsByUserNameOrUserID = asyncHandler(async(req, res) => {
                 "title": 1,
                 "description": 1,
                 "fileUrl": 1,
-                "ownersId": 1,
+                "ownerId": 1,
                 "views": 1,
                 "likesCount": 1,
                 "commentsCount": 1,
                 "createdAt": 1,
-                "like": 1,
                 "isLiked": 1,
                 "ownerDetails": 1
             }
@@ -240,7 +258,7 @@ const getPostsByUserNameOrUserID = asyncHandler(async(req, res) => {
     console.log(result)
     return res  
     .status(200)
-    .json(new ApiResponse(200, `Posts fetched for user ${user.userName || userName_Id}`, result))
+    .json(new ApiResponse(200, `Posts fetched for user ${user.userName || userName_Id}`, ...result))
 })
 
 export {

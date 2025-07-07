@@ -30,6 +30,11 @@ const addCommentController = asyncHandler( async (req, res) => {
 
         const response = createdComment.toObject()
         delete response.__v      
+        delete response.postId
+        delete response.ownerId    
+        delete response._id   
+        delete response.updatedAt
+
         
         await Post.findByIdAndUpdate( 
             postId,
