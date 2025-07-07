@@ -57,6 +57,10 @@ const toggleLikeController = asyncHandler(async (req, res) => {
 
 })
 
+const getAllLikedPostsForUser = asyncHandler(async(req, res) => {
+    
+})
+
 export {
     toggleLikeController
 }

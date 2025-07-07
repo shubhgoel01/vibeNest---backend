@@ -344,12 +344,50 @@ const getAllPosts = asyncHandler(async (req, res) => {
     ))
 })
 
+const getPostByID = asyncHandler(async (req, res) => {
+    const {postId} = req.params
+
+    const result = await Post.aggregate([
+        {
+            $match: {_id: new mongoose.Types.ObjectId(postId)}
+        },
+        {
+            $lookup: {
+                from: "users",
+                localField: "ownerId",
+                foreignField: "_id",
+                as: "ownerDetails",
+                pipeline: [
+                    {
+                        $project: {
+                            "userName": 1,
+                            "avatar": 1,
+                            "_id": 1
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            $unwind: "$ownerDetails"
+        }
+    ])
+
+    return res.status(200).json(new ApiResponse(
+        200,
+        "Post fetched successfully",
+        result
+    ))
+})
+
+
 export {
     uploadPost,
     updatePost,
     deletePost,
     getPostsByUserNameOrUserID,
-    getAllPosts
+    getAllPosts,
+    getPostByID
 }
 
 //TODO: getAllPosts, getPostsByUserName, (include functionalities like, is post liked? by the user also handle when user is loogedIn and not loggedIn), changeStatusOfPost(unPublished, private, public)

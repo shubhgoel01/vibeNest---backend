@@ -66,7 +66,166 @@ const addCommentController = asyncHandler( async (req, res) => {
     }
 })
 
-export default addCommentController
+const getMyAllComments = asyncHandler(async(req, res) => {
+    const userId = req.user?._id
+    if(!userId)
+        throw new ApiError(401, "Unauthorized request", new Error("userID not found"), 'getAllCommentsForUser: comments.controller.js')
+
+    const comments = await Comment.aggregate([
+        {
+            $match: {
+                ownerId: new mongoose.Types.ObjectId(userId)
+            }
+        },
+        {
+            $lookup: {
+                from: "posts",
+                localField: "postId",
+                foreignField: "_id",
+                as: "postDetails",
+                pipeline: [
+                    {
+                        $project: {
+                            _id: 1,
+                            title: 1,
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            $unwind: "$postDetails"
+        },
+        {
+            $project: {
+                createdAt: 1,
+                content: 1,
+                postDetails: 1
+            }
+        }
+    ])
+
+    return res.status(200).json(new ApiResponse(
+        200,
+        "Comments fetched successfully",
+        comments
+    ))
+})
+
+const getAllCommentsForPost = asyncHandler(async(req, res) => {
+    const {postId} = req.params
+    const {pageLimit, lastCreatedAt, lastPostId} = req.query
+    let query = undefined
+
+    query = (!lastCreatedAt)? {} : {
+        $or: [
+            {createdAt: {$lt: new Date(lastCreatedAt)}},
+            {createdAt: new Date(lastCreatedAt), _id: {$lt: lastPostId}}
+        ]
+    }
+
+    const result = await Comment.aggregate([
+        {
+            $match: {
+                postId: new mongoose.Types.ObjectId(postId),
+                ...query
+            }
+        },
+        {
+            $sort: {createdAt: -1, _id: -1}
+        },
+        {
+            $limit: Number(pageLimit) || 10
+        },
+        {
+            $lookup: {
+                from: "users",
+                localField: "ownerId",
+                foreignField: "_id",
+                as: "ownerDetails",
+                pipeline: [
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            avatar: 1
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            $unwind: "$ownerDetails"
+        },
+        {
+            $project: {
+                content: 1,
+                createdAt: 1,
+                ownerDetails: 1
+            }
+        }
+    ])
+
+    const resultLength = result.length
+
+    const metaData = {
+        pageLimit: pageLimit,
+        lastCreatedAt: (resultLength<pageLimit) ? null : result[resultLength-1].createdAt,
+        lastPostId: (resultLength<pageLimit) ? null : result[resultLength-1]._id,
+    }
+
+    return res.status(200).json(new ApiResponse(
+        200,
+        "Comments fetched successfully",
+        {result, metadata}
+    ))
+})
+
+const deleteComment = asyncHandler(async(req, res) => {
+    const {commentId} = req.params
+    const userId = req.user?._id
+
+   if(!commentId)
+        throw new ApiError(400, "Invalid request", new Error("commentId not found"), 'deleteComment: comments.controller.js')
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const comment = await Comment.findOneAndDelete({_id: commentId, ownerId: userId}, {session})
+
+        if(!comment)
+            throw new ApiError(404, "Comment not found", new Error("Comment with given ID not found"), 'deleteComment: comments.controller.js')
+
+        await Post.findByIdAndUpdate(
+            comment.postId,
+            {
+                $inc: {commentsCount: -1}
+            },
+            {
+                session,
+                new: true
+            }
+        )
+
+        await session.commitTransaction();
+
+        return res.status(200).json(new ApiResponse(
+            200,
+            "Comment deleted successfully",
+            {isDeleted: true}
+        ))
+    } 
+    catch (error) {
+        await session.abortTransaction();
+        throw new ApiError(500, "Some internal Error occurred", error, 'deleteComment: comments.controller.js')
+    }
+    finally{
+        session.endSession();
+    }
+})
+
+export {addCommentController, getAllCommentsForPost, getMyAllComments, deleteComment}
 
 /*
     Explanation of :

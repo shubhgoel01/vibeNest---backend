@@ -42,11 +42,7 @@ const userSchema = mongoose.Schema({
         type: fileSchema,
         required: true
     },
-    refreshToken: String,
-    followersCount: {
-        type: Number,
-        default: 0
-    }
+    refreshToken: String
 }, {timestamps: true,})
 
 userSchema.methods.isPasswordCorrect = async function (password){
