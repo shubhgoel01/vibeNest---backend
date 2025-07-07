@@ -183,11 +183,11 @@ const logOutUser = asyncHandler(async (req, res) => {
 const getUserDetailsByUserIdOrUserName = asyncHandler(async(req, res) => { 
     const loggedInUserId = req.user?._id
     if(!loggedInUserId)
-        throw ApiError(401, "Please Login To Continue", new Error("User is not-logged in"), "getUserDetailsByUserIdOrUserName: users.controllers.js")
+        throw new ApiError(401, "Please Login To Continue", new Error("User is not-logged in"), "getUserDetailsByUserIdOrUserName: users.controllers.js")
 
-    const searchUserId_UserName = req.params.userId || req.params.userName
-    if(!searchUserId_UserName)
-        throw ApiError(404, "Invalid Request", new Error("searchUserId_UserName id not found"), "getUserDetailsByUserIdOrUserName: users.controllers.js")
+    const searchUserId_UserName = req.params?.userId_Name
+    // Use a logger here if needed, e.g., logger.info("searchUserId_UserName", searchUserId_UserName)
+        throw new ApiError(404, "Invalid Request", new Error("searchUserId_UserName id not found"), "getUserDetailsByUserIdOrUserName: users.controllers.js")
     
     const searchedUser = await User.aggregate([
         {
@@ -202,7 +202,7 @@ const getUserDetailsByUserIdOrUserName = asyncHandler(async(req, res) => {
             $lookup: {
                 from: "followers",
                 localField: "_id",
-                foreignField: "userId",
+                foreignField: "user2Id",
                 as: "followers"
             }
         },
@@ -242,13 +242,21 @@ const getUserDetailsByUserIdOrUserName = asyncHandler(async(req, res) => {
         },
         {
             $project: {
-                password: 0,
-                refreshToken: 0,
-                followers: 0,
-                followRequests: 0
+                "_id": 1,
+                "userName": 1,
+                "email": 1,
+                "fullName": 1,
+                "avatar": 1,
+                "followersCount": 1,
+                "createdAt": 1,
+                "isFollowedByLoggedInUser": 1,
+                "isFollowRequestSentByLoggedInUser": 1,
+                "isFollowRequestReceivedByLoggedInUser": 1
             }
         }
     ])
+
+    console.log("searchedUser", searchedUser)
 
     return res
         .status(200)

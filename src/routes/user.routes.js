@@ -5,6 +5,7 @@ import { refreshAccessToken } from "../controllers/users.controllers.js";
 import { logOutUser } from "../controllers/users.controllers.js";
 import verifyUser from "../middlewares/auth.middleware.js";
 import { upload } from "../utils/multer.utils.js";
+import { getUserDetailsByUserIdOrUserName } from "../controllers/users.controllers.js";
 
 const userRouter = express.Router();
 
@@ -17,6 +18,7 @@ userRouter.route("/refresh").post(refreshAccessToken)
 
 
 userRouter.route("/logout").post(verifyUser, logOutUser)
+userRouter.route("/getUser/:userId_Name").get(verifyUser, getUserDetailsByUserIdOrUserName)
 
 export default userRouter
 

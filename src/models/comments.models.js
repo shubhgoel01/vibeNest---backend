@@ -18,6 +18,6 @@ const commentSchema = mongoose.Schema({
         maxLength: [500, 'Comment cannot exceed 500 characters'],
         minLength: [1, 'Comment must have at least 1 character'],
     }
-})
+}, {timestamps: true})
 
 export const Comment = mongoose.model('Comment', commentSchema);

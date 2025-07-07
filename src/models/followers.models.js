@@ -1,16 +1,16 @@
-import express from 'express';
+import mongoose from "mongoose"
 
-const followerSchema = new express.Schema({
+const followerSchema = mongoose.Schema({
     user1Id: {
-        type: express.Schema.Types.ObjectId,
+        type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true,
     },
     user2Id: {
-        type: express.Schema.Types.ObjectId,
+        type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true,
     }
 }, { timestamps: true });
 
-export const Follower = express.model('Follower', followerSchema);
+export const Follower = mongoose.model('Follower', followerSchema);

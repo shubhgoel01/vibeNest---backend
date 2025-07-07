@@ -11,7 +11,7 @@ import { Like } from "../models/likes.models.js";
 import { User } from "../models/users.models.js";
 
 const uploadPost = asyncHandler(async (req, res) => {
-    const { title, description } = req.body;
+    const { title, description, status = 'public'} = req.body;
     const userId = req.user?._id;
     const array_files = [];
 
@@ -45,12 +45,7 @@ const uploadPost = asyncHandler(async (req, res) => {
     if (req.files?.images?.length > 0) {
         for (const file of req.files.images) {
             const uploadedImage = await uploadOnCloudinary(file.path, "image");
-            if (!uploadedImage?.secure_url) {
-                throw new ApiError(500, "Image upload failed", new Error("Cloudinary upload failed"), 'uploadVideo: videos.controllers.js');
-            }
-
-            console.log("Url", uploadedImage?.secure_url)
-            console.log("public_id", uploadedImage?.public_id)
+            
             array_files.push({
                 url: uploadedImage?.secure_url,
                 public_id: uploadedImage?.public_id}
@@ -63,55 +58,57 @@ const uploadPost = asyncHandler(async (req, res) => {
         description,
         fileUrl: array_files,
         ownersId: userId,
+        status: status
     });
 
-    const savedPost = await newPost.save();
+    const savedPost = (await newPost.save()).toObject();
+    delete savedPost.updatedAt
+    delete savedPost.__v
 
     return res
         .status(201)
         .json(new ApiResponse(201, "Post posted successfully", savedPost));
 });
 
-const editPost = asyncHandler(async (req, res) => {
-    const {title, description, postId, status} = req.body
-    const userId = req.user?._id
+const updatePost = asyncHandler(async (req, res) => {
+  const { title, description, postId, status } = req.body;
+  const userId = req.user?._id;
 
-    if(!userId)
-        throw new ApiError(401, "You are unauthorized to perform the action", new Error("userID not found"), "editPost: videos.controller.js")
-    if(!postId)
-        throw new ApiError(400, "postId required", new Error("Could not find post id"), "editPost: videos.controller.js")
+  if (!userId)
+    throw new ApiError(401, "You are unauthorized to perform the action", new Error("userID not found"), "editPost: videos.controller.js");
 
+  if (!postId)
+    throw new ApiError(400, "postId required", new Error("Could not find post id"), "editPost: videos.controller.js");
 
-    const existingPost = await Post.findOne({
-        _id: postId,
-        ownersId: userId
-    });
-    if(!existingPost)
-        throw new ApiError(400, "No post found", new Error("Post with passed id does not exist"), "editPost: videos.controller.js")
+  // Only include fields provided in the request body
+  const updateFields = {};
+  if (title) updateFields.title = title;
+  if (description) updateFields.description = description;
+  if (status) updateFields.status = status;
 
-    const updatedPost = Post.findByIdAndUpdate(postId, {
-            title: title || existingPost.title,
-            description: description || existingPost.description,
-            status: status || existingPost.status
-        },
-    { new: true })._update
+  const updatedPost = await Post.findOneAndUpdate(
+    { _id: postId, ownersId: userId },
+    updateFields,
+    { new: true }
+  ).select("-__v -updatedAt");
 
-    console.log("updatedPost : ", updatedPost)
+  if (!updatedPost)
+    throw new ApiError(404, "No post found or you are not authorized", new Error("Either post does not exist or user is not the owner"), "editPost: videos.controller.js");
 
-    if(!updatedPost)
-        throw new ApiError(500, "Some internal Error Occurred", new Error("Failed to update post"), "editPost: videos.controller.js")
+  return res.status(200).json(
+    new ApiResponse(200, "Post Successfully Updated", updatedPost)
+  );
+});
 
-    return res
-        .status(200)
-        .json(new ApiResponse(200, "Post Successfuly Updated", updatedPost))
-})
+/*
+    Things to note:  
+    In above updated code now allow users to update only selected fields, along with that verifying that
+    user is only able to update his own post. (with optimization)
+*/
 
 const deletePost = asyncHandler(async (req, res) => {
     const {postId} = req.body
     const userId = req.user?._id
-
-    console.log("postId", postId)
-    console.log("userId", userId)
 
     if(!postId)
         throw new ApiError(400, "postId required", new Error("Could not find post id"), "deletePost: videos.controller.js")
@@ -133,13 +130,13 @@ const deletePost = asyncHandler(async (req, res) => {
 
     return res
         .status(200)
-        .json(new ApiResponse(200, "PostDeleted Successfully", {}))
+        .json(new ApiResponse(200, "PostDeleted Successfully", {isDeleted: true}))
 })
 
 /*
     IMP : Note that we are first deleting the post and then deleting the posts, because there may be a case if we delete files
     from the cloudinary first, and may be due to some error (network error) databse operation fails, then the post contains invalid 
-    files links, this is harmful and reverse is not.
+    files links, this is harmful but reverse is not.
     ALTERNATIVE: we can use transactions
 
     NOTE: Note how we are performing validation when deletign a post, we are finding a post that matched both
@@ -149,18 +146,25 @@ const deletePost = asyncHandler(async (req, res) => {
     For this particulat validation, we have one more approach
 */
 
-const getPostsByUserName = asyncHandler(async(req, res) => {
-    const userName = req.params?.userName
-    const user = await User.findOne({userName: userName})    
+const getPostsByUserNameOrUserID = asyncHandler(async(req, res) => {
+    const userName_Id = req.params?.userName_Id
+    const user = await User.findOne(
+        {
+            $or: [
+                {_id: userName_Id},
+                {userName: userName_Id}
+            ]
+        }
+    )    
     
     if(!user)
-        throw ApiError(400, "Invalid Request", new Error("No user found with with userName"), "getPostsByUserName: post.controllers.js")
+        throw new ApiError(400, "Invalid Request", new Error("No user found with with userName"), "getPostsByUserName: post.controllers.js")
     
     const myPosts = (req.user?._id === user._id)? "private" : "public"
     
     const result = await Post.aggregate([
         {
-            $match: {ownersId: mongoose.Types.ObjectId(user?._id), 
+            $match: {ownersId: new mongoose.Types.ObjectId(user?._id), 
                 status: {
                     $in: ["public", myPosts]
                 }
@@ -174,7 +178,7 @@ const getPostsByUserName = asyncHandler(async(req, res) => {
                 as: "like",
                 pipeline: [
                     {
-                        $match: {ownerId: mongoose.Types.ObjectId(req.user?._id)}
+                        $match: {ownerId: new mongoose.Types.ObjectId(req.user?._id)}
                     },
                     {
                         $project: {
@@ -183,6 +187,27 @@ const getPostsByUserName = asyncHandler(async(req, res) => {
                     }
                 ]
             }
+        },
+        {
+            $lookup: {
+                from: "users",
+                localField: "ownersId",
+                foreignField: "_id",
+                as: "ownerDetails",
+                pipeline: [
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            avatar: 1
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            $unwind: "$ownerDetails"    // NOTE: by defualt, lookup returns an array, but i am sure there is only one element and 
+            //in my result i awnt to store the object directly, so flattenned the ownerDetails
         },
         {
             $addFields: {
@@ -194,21 +219,37 @@ const getPostsByUserName = asyncHandler(async(req, res) => {
                     }
                 }
             }
-        }     
+        },
+        {
+            $project: {
+                "_id" : 1,
+                "title": 1,
+                "description": 1,
+                "fileUrl": 1,
+                "ownersId": 1,
+                "views": 1,
+                "likesCount": 1,
+                "commentsCount": 1,
+                "createdAt": 1,
+                "like": 1,
+                "isLiked": 1,
+                "ownerDetails": 1
+            }
+        }    
     ])
     console.log(result)
     return res  
     .status(200)
-    .json(new ApiResponse(200, `Posts fetched for user ${userName}`,result))
+    .json(new ApiResponse(200, `Posts fetched for user ${user.userName || userName_Id}`, result))
 })
 
 export {
     uploadPost,
-    editPost,
+    updatePost,
     deletePost,
-    getPostsByUserName
+    getPostsByUserNameOrUserID
 }
 
 //TODO: getAllPosts, getPostsByUserName, (include functionalities like, is post liked? by the user also handle when user is loogedIn and not loggedIn), changeStatusOfPost(unPublished, private, public)
 
-//NEED TO UPDATE getPostsByUserName, there are many inconsistencies that can ause problems in frontEnd
+//NEED TO UPDATE getPostsByUserName, there are many inconsistencies that can ause problems in frontEnd, also include some userDetails
