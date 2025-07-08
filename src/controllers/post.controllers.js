@@ -163,43 +163,36 @@ const deletePost = asyncHandler(async (req, res) => {
 
 const getPostsByUserNameOrUserID = asyncHandler(async(req, res) => {
     const userName_Id = req.params?.userName_Id
-    let query = undefined, query2 = undefined
+    let query = undefined, query2 = {}
 
     const {pageLimit, lastPostId, lastCreatedAt} = req.query
-    console.log(pageLimit)
-    console.log(lastPostId)
-    console.log(lastCreatedAt)
-
     
     if(mongoose.Types.ObjectId.isValid(userName_Id))
         query = {_id: new mongoose.Types.ObjectId(userName_Id)}
     else query = {userName: userName_Id}
 
     const user = await User.findOne(query)  
-    const myPosts = (req.user?._id === user._id)? "private" : "public"
+    const filterStatus = (req.user?._id === user._id)? ["public", "private", "undefined"] : ["public"]
 
-    query2 = (!lastPostId) ? 
-                {
-                ownerId: user._id, 
-                status: {
-                    $in: ["public", myPosts]
-                    }
-                }:
-                {
-                    ownerId: user._id, 
-                    status: {
-                        $in: ["public", myPosts]
-                    },
-                    $or: [
-                        { createdAt: { $lt: new Date(lastCreatedAt) } },
-                        { createdAt: new Date(lastCreatedAt), _id: { $lt: lastPostId } }
-                    ]
-                }
+    if(lastPostId)
+        query2 = {
+            $or: [
+                { createdAt: { $lt: new Date(lastCreatedAt) } },
+                { createdAt: new Date(lastCreatedAt), _id: { $lt: lastPostId } }
+            ]
+        }
+                
     console.log(query2)
     
     const result = await Post.aggregate([
         {
-            $match: query2
+            $match: {
+                ownerId: user._id, 
+                status: {
+                    $in: filterStatus
+                },
+                ...query2
+            }
         },
         {
             $sort: {createdAt: -1, _id: -1}
@@ -207,71 +200,71 @@ const getPostsByUserNameOrUserID = asyncHandler(async(req, res) => {
         {
             $limit: Number(pageLimit)
         },
-        // {
-        //     $lookup: {
-        //         from: "likes",
-        //         localField: "_id",
-        //         foreignField: "postId",
-        //         as: "like",
-        //         pipeline: [
-        //             {
-        //                 $match: {ownerId: new mongoose.Types.ObjectId(req.user?._id)}
-        //             },
-        //             {
-        //                 $project: {
-        //                     _id: 1
-        //                 }
-        //             }
-        //         ]
-        //     }
-        // },
-        // {
-        //     $lookup: {
-        //         from: "users",
-        //         localField: "ownerId",
-        //         foreignField: "_id",
-        //         as: "ownerDetails",
-        //         pipeline: [
-        //             {
-        //                 $project: {
-        //                     _id: 1,
-        //                     userName: 1,
-        //                     avatar: 1
-        //                 }
-        //             }
-        //         ]
-        //     }
-        // },
-        // {
-        //     $unwind: "$ownerDetails"    // NOTE: by defualt, lookup returns an array, but i am sure there is only one element and 
-        //     //in my result i awnt to store the object directly, so flattenned the ownerDetails
-        // },
-        // {
-        //     $addFields: {
-        //         isLiked: {
-        //             $cond: {
-        //                 if: {$size: "$like"},
-        //                 then: true,
-        //                 else: false
-        //             }
-        //         }
-        //     }
-        // },
-        // {
-        //     $project: {
-        //         "_id" : 1,
-        //         "title": 1,
-        //         "description": 1,
-        //         "fileUrl": 1,
-        //         "ownerId": 1,
-        //         "views": 1,
-        //         "likesCount": 1,
-        //         "commentsCount": 1,
-        //         "createdAt": 1,
-        //         "isLiked": 1,
-        //         "ownerDetails": 1
-        //     }
-        // }    
+        {
+            $lookup: {
+                from: "likes",
+                localField: "_id",
+                foreignField: "postId",
+                as: "like",
+                pipeline: [
+                    {
+                        $match: {ownerId: new mongoose.Types.ObjectId(req.user?._id)}
+                    },
+                    {
+                        $project: {
+                            _id: 1
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                localField: "ownerId",
+                foreignField: "_id",
+                as: "ownerDetails",
+                pipeline: [
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            avatar: 1
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            $unwind: "$ownerDetails"    // NOTE: by defualt, lookup returns an array, but i am sure there is only one element and 
+            //in my result i awnt to store the object directly, so flattenned the ownerDetails
+        },
+        {
+            $addFields: {
+                isLiked: {
+                    $cond: {
+                        if: {$size: "$like"},
+                        then: true,
+                        else: false
+                    }
+                }
+            }
+        },
+        {
+            $project: {
+                "_id" : 1,
+                "title": 1,
+                "description": 1,
+                "fileUrl": 1,
+                "ownerId": 1,
+                "views": 1,
+                "likesCount": 1,
+                "commentsCount": 1,
+                "createdAt": 1,
+                "isLiked": 1,
+                "ownerDetails": 1
+            }
+        }    
     ])
     console.log(result)
 

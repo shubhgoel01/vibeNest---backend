@@ -7,10 +7,7 @@ import mongoose from "mongoose"
 
 const createFollowRequest = asyncHandler(async (req, res) => {
     const loggedInUserId = req.user?._id
-    const { userId: targetUserId } = req.params
-
-    if (!loggedInUserId) 
-        throw new ApiError(401,"Unauthorized request",new Error("User not logged in"),"createFollowRequest: follow.controller.js")
+    const { userId: targetUserId } = req.body
 
     if (!targetUserId) 
         throw new ApiError(400,"Invalid request",new Error("Target User ID missing"),"createFollowRequest: follow.controller.js")
@@ -54,18 +51,19 @@ const acceptFollowRequest = asyncHandler(async (req, res) => {
     const loggedInUserId = req.user?._id
     const { requestId } = req.params
 
+    if(!requestId || !mongoose.Types.ObjectId.isValid(requestId))
+        throw new ApiError(400, "invalid requestId")
+
     const session = await mongoose.startSession()
     session.startTransaction()
 
     try {
-        const followRequest = await FollowRequest.findOneAndDelete({_id: requestId,requestedToUserId: loggedInUserId},{ session })
+        const followRequest = await FollowRequest.findOneAndDelete({_id: requestId, requestedToUserId: loggedInUserId},{ session })
 
-        if (!followRequest) throw new ApiError(400,"Invalid Request",new Error("No follow request found or unauthorized action"),"acceptFollowRequest")
+        if (!followRequest) 
+            throw new ApiError(400,"Invalid Request",new Error("No follow request found or unauthorized action"),"acceptFollowRequest")
         
-        const requestingUserId = followRequest?.requestedByUserId
-        console.log("requestingUserId", requestingUserId)
-
-        await Follower.create([{user1Id: loggedInUserId,user2Id: requestingUserId}],{ session })
+        await Follower.create([{user1Id: loggedInUserId,user2Id: followRequest.requestedByUserId}],{ session })
 
         await session.commitTransaction()
 
@@ -88,8 +86,8 @@ const rejectFollowRequest = asyncHandler(async (req, res) => {
     const loggedInUserId = req.user?._id;
     const { requestId } = req.params; 
 
-    if (!loggedInUserId) 
-        throw new ApiError(401,"Unauthorized request",new Error("User not logged in"),"rejectFollowRequest: follow.controller.js");
+    if(!requestId || !mongoose.Types.ObjectId.isValid(requestId))
+        throw new ApiError(400, "invalid requestId")
 
     const followRequest = await FollowRequest.findOneAndDelete({
         _id: requestId, 
@@ -111,29 +109,19 @@ const rejectFollowRequest = asyncHandler(async (req, res) => {
 
 const removeFollower = asyncHandler(async (req, res) => {
     const loggedInUserId = req.user?._id;
-    const targetUserId = req.params.userId;
+    const followId = req.params.followId;
 
-    console.log("loggedInUserId", loggedInUserId)
-    console.log("targetUserId", targetUserId)
-
-    if (!loggedInUserId) 
-        throw new ApiError(401,"Unauthorized request",new Error("User not logged in"),"removeFollower: follow.controller.js");
-
-    if (!targetUserId)
+    if (!followId || !mongoose.Types.ObjectId.isValid(followId))
         throw new ApiError(400,"Invalid request",new Error("Target User ID missing"),"removeFollower: follow.controller.js");
 
     let response 
     response = await Follower.findOneAndDelete({
-        user1Id: new mongoose.Types.ObjectId(targetUserId), // they are following me
-        user2Id: new mongoose.Types.ObjectId(loggedInUserId)
+        _id: followId,
+        $or: [
+            {"user1Id": loggedInUserId},
+            {"user2Id": loggedInUserId}
+        ]
     });
-
-    if (!response) {
-        response = await Follower.findOneAndDelete({
-            user1Id: new mongoose.Types.ObjectId(loggedInUserId), // I am following them
-            user2Id: new mongoose.Types.ObjectId(targetUserId)
-        });
-    }
 
     if (!response)
         throw new ApiError(400,"Invalid Request",new Error("No follower/following relationship found"),"removeFollower")
@@ -149,21 +137,21 @@ const removeFollower = asyncHandler(async (req, res) => {
 
 
 const getAllFollowersForUser = asyncHandler(async(req, res) => {
-    const loggedInUserID = req.user?._id
+    const userId = req.params.userId
     
 
     const result = await Follower.aggregate([
         { $match: { 
             $or: [
-                { user1Id: loggedInUserID },
-                { user2Id: loggedInUserID }
+                { user1Id: userId },
+                { user2Id: userId }
             ]}
         },
         {
             $addFields: {
             targetUserId: {
                 $cond: {
-                    if: { $eq: ["$user1Id", loggedInUserID] },
+                    if: { $eq: ["$user1Id", userId] },
                     then: "$user2Id",
                     else: "$user1Id"
                     }
@@ -206,20 +194,13 @@ const getAllFollowersForUser = asyncHandler(async(req, res) => {
 //We can also add pagination to this
  
 const getAllFollowersCount = asyncHandler(async(req, res) => {
-    const loggedInUserId = req.user?._id
+    const userId = req.params.userId
     console.log(loggedInUserId)
-
-    // const result = Follower.find({       //Getting error here, do not know why, saw from (count in mongodb)
-    //     $or: [
-    //         {user1Id: loggedInUserId},
-    //         {user2Id: loggedInUserId}
-    //     ]
-    // }).count()
 
     const result = await Follower.where({
         $or:[
-            {user1Id: loggedInUserId},
-            {user2Id: loggedInUserId}
+            {user1Id: userId},
+            {user2Id: userId}
         ]
     }).countDocuments()
 
@@ -230,6 +211,10 @@ const getAllFollowersCount = asyncHandler(async(req, res) => {
 
 const getAllFollowRequestsSent = asyncHandler(async(req, res)=>{
     const loggedInUserId = req.user?._id
+    const userId = req.params.userId
+
+    if(loggedInUserId !== userId)
+        return new ApiError(404, "You Are not Authorized")
 
     const result = await FollowRequest.aggregate([
         {
@@ -269,6 +254,10 @@ const getAllFollowRequestsSent = asyncHandler(async(req, res)=>{
 
 const allFollowRequestsReceived = asyncHandler(async(req, res)=>{
     const loggedInUserId = req.user?._id
+    const userId = req.params.userId
+
+    if(userId !==loggedInUserId)
+        return new ApiError(404, "Unauthorized request")
 
     const result = await FollowRequest.aggregate([
         {
@@ -306,8 +295,22 @@ const allFollowRequestsReceived = asyncHandler(async(req, res)=>{
     return res.status(200).json(new ApiResponse(200, "Data fetched", result))
 })
 
-const removeFollowRequest = asyncHandler(async(req, res) => {
-    
+const cancelFollowRequest = asyncHandler(async(req, res) => {
+    const requestId = req.body.requestId
+    const loggedInUserId = req.user?._id
+
+    if(!requestId || !mongoose.Types.ObjectId.isValid(requestId))
+        throw new ApiError(400, "Invalid Request")
+
+    const response = await FollowRequest.findOneAndDelete({
+        _id: requestId,
+        requestedByUserId: loggedInUserId
+    })
+
+    if(!response)
+        throw new ApiError(400, "No followRequest found")
+
+    return res.status(200).json({isCancelled : true})
 })
 
 export {
@@ -318,5 +321,6 @@ export {
     allFollowRequestsReceived, 
     getAllFollowersCount, 
     getAllFollowRequestsSent,
-    removeFollower
+    removeFollower,
+    cancelFollowRequest
 }

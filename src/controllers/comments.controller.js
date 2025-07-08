@@ -4,23 +4,42 @@ import { Comment } from "../models/comments.models.js";
 import ApiResponse from "../utils/ApiResponse.utils.js";
 import { Post } from "../models/posts.models.js";
 import mongoose from "mongoose";
+import { Follower } from "../models/followers.models.js";
 
 const addCommentController = asyncHandler( async (req, res) => {
-    const {postId, content} = req.body
+    const {content} = req.body
+    const postId = req.params.postId
     const userId = req.user?._id
 
-    if(!postId)
-        throw new ApiError(400, "Invalid request", new Error("postId not found"), 'addComment: comments.controller.js')
-    if(!userId)
-        throw new ApiError(401, "Unauthorized request", new Error("userID not found"), 'addComment: comments.controller.js')
+    if(!postId || !mongoose.Types.ObjectId.isValid(postId))
+        throw new ApiError(400, "Invalid request", new Error("postId not found or invalid postId"))
 
     if(!content || content?.trim().length == 0)
-        throw new ApiError(400, "Comment should contain at least one character", new Error("Content field is empty"), 'addComment: comments.controller.js')
+        throw new ApiError(400, "Comment should contain at least one character", new Error("Content field is empty"))
 
     const session = await mongoose.startSession();
     session.startTransaction();
 
+    let response = undefined
+
     try {
+        response = await Post.findById(postId, null, {session})
+
+        if(!response || response.status==="unPublished")
+            throw new ApiError(400, "Invalid Request", new Error("Post not found with passed postId or post is private"))
+
+        if(response.status === "private"){
+            response = await Follower.findOne({
+                $or: [
+                    {user1Id: userId, user2Id: response.ownerId},
+                    {user2Id: userId, user1Id: response.ownerId},
+                ]
+            }, null, {session})
+
+            if(!response)
+                throw new ApiError(400, "Invalid Request", new Error("user is not authorized"))
+        }
+
         const [createdComment] = await Comment.create([{
             postId : postId,
             ownerId: userId,
@@ -30,9 +49,6 @@ const addCommentController = asyncHandler( async (req, res) => {
 
         const response = createdComment.toObject()
         delete response.__v      
-        delete response.postId
-        delete response.ownerId    
-        delete response._id   
         delete response.updatedAt
 
         
@@ -59,7 +75,11 @@ const addCommentController = asyncHandler( async (req, res) => {
     } 
     catch (error) {
         await session.abortTransaction();
-        throw new ApiError(500, "Some internal Error occurred", new Error("Transaction Failed and rolled back"), 'addComment: comments.controller.js')
+        throw new ApiError(error.statusCode.status || 500,
+            error.message || "Some internal error occurred", 
+            error, 
+            'addComment: comments.controller.js'
+        )
     }
     finally{
         session.endSession();
@@ -68,8 +88,6 @@ const addCommentController = asyncHandler( async (req, res) => {
 
 const getMyAllComments = asyncHandler(async(req, res) => {
     const userId = req.user?._id
-    if(!userId)
-        throw new ApiError(401, "Unauthorized request", new Error("userID not found"), 'getAllCommentsForUser: comments.controller.js')
 
     const comments = await Comment.aggregate([
         {
@@ -182,17 +200,17 @@ const getAllCommentsForPost = asyncHandler(async(req, res) => {
 })
 
 const deleteComment = asyncHandler(async(req, res) => {
-    const {commentId} = req.params
+    const {commentId, postId} = req.params
     const userId = req.user?._id
 
-   if(!commentId)
+   if(!commentId || !postId || !mongoose.Types.ObjectId.isValid(commentId) || !mongoose.Types.ObjectId.isValid(postId))
         throw new ApiError(400, "Invalid request", new Error("commentId not found"), 'deleteComment: comments.controller.js')
 
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
-        const comment = await Comment.findOneAndDelete({_id: commentId, ownerId: userId}, {session})
+        const comment = await Comment.findOneAndDelete({_id: commentId, ownerId: userId, postId: postId}, {session})
 
         if(!comment)
             throw new ApiError(404, "Comment not found", new Error("Comment with given ID not found"), 'deleteComment: comments.controller.js')

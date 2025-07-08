@@ -18,19 +18,20 @@ app.use(cookieParser())
 import errorRouter from './routes/error.routes.js';
 import tempRouter from '../checkDatabseConnectivity/route.CDC.js';
 import { commentRouter } from './routes/comments.routes.js';
-import { likeRouter } from './routes/likes.routes.js';
-import { postRouter } from './routes/posts.routes.js';
-import userRouter from './routes/user.routes.js';
+import { likesRouter } from '../src/routes/likes.routes.js'
+import { userRouter } from './routes/user.routes.js';
 import followRouter from './routes/follow.routes.js';
+import { authRouter } from './routes/user.routes.js';
 
 app.use(errorRouter)
 app.use(tempRouter)
 
-app.use("/comment/v1" ,commentRouter)
-app.use("/like/v1" ,likeRouter)
-app.use("/post/v1", postRouter)
+app.use("/v1" ,commentRouter)
+app.use("/v1" ,likesRouter)
+app.use("v1/posts", postRouter)
 app.use("/user/v1", userRouter)
-app.use("/follow/v1", followRouter)
+app.use("/v1/user/:userID", followRouter)
+app.use("/v1/auth", authRouter)
 
 
 //Import Custom Middlewares

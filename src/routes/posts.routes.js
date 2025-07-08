@@ -22,9 +22,9 @@ postRouter.route("/uploadPost").post(
     ]),
     uploadPost
 )
-postRouter.route("/updatePost").post(verifyUser, updatePost)
-postRouter.route("/deletePost").post(verifyUser, deletePost)
-postRouter.route("/getallPost").get(verifyUser, getAllPosts)
+postRouter.route("/:postId").patch(verifyUser, updatePost)
+postRouter.route("/:postId").delete(verifyUser, deletePost)
+postRouter.route("").get(verifyUser, getAllPosts)
 
 postRouter.route("/getPost/:userName_Id").get(verifyUser, getPostsByUserNameOrUserID)
 
