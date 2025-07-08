@@ -22,15 +22,16 @@ import { likesRouter } from '../src/routes/likes.routes.js'
 import { userRouter } from './routes/user.routes.js';
 import followRouter from './routes/follow.routes.js';
 import { authRouter } from './routes/user.routes.js';
+import { postRouter } from './routes/posts.routes.js';
 
 app.use(errorRouter)
 app.use(tempRouter)
 
 app.use("/v1" ,commentRouter)
 app.use("/v1" ,likesRouter)
-app.use("v1/posts", postRouter)
-app.use("/user/v1", userRouter)
-app.use("/v1/user/:userID", followRouter)
+app.use("/v1/posts", postRouter)
+app.use("/v1/user", userRouter)
+app.use("/v1/user", followRouter)
 app.use("/v1/auth", authRouter)
 
 

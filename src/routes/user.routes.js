@@ -19,7 +19,7 @@ authRouter.route("/login").post(loginController)
 authRouter.route("/refresh").post(refreshAccessToken)
 userRouter.route("/logout").post(verifyUser, logOutUser)
 
-userRouter.route("/:userIdOrName").get(verifyUser, getUserDetailsByUserIdOrUserName)
+userRouter.route("/:userId_Name").get(verifyUser, getUserDetailsByUserIdOrUserName)
 
 export {userRouter, authRouter}
 

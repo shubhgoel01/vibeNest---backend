@@ -12,14 +12,14 @@ import verifyUser from "../middlewares/auth.middleware.js"
 
 const followRouter = express.Router()
 
-followRouter.route("/followRequest").post(verifyUser, createFollowRequest);
-followRouter.route("/follow-request/:requestId/accept").post(verifyUser, acceptFollowRequest);
-followRouter.route("/follow-request/:requestId/reject").post(verifyUser, rejectFollowRequest);
-followRouter.route("/follow/:id").delete(verifyUser, removeFollower);
-followRouter.route("/followers").get(verifyUser, getAllFollowersForUser);
-followRouter.route("/followers/count").get(verifyUser, getAllFollowersCount);
-followRouter.route("/follow-requests/sent").get(verifyUser, getAllFollowRequestsSent);
-followRouter.route("/follow-requests/received").get(verifyUser, allFollowRequestsReceived);
-followRouter.route("/follow-requests/:requestId").delete(verifyUser, cancelFollowRequest);
+followRouter.route("/:userId/followRequest").post(verifyUser, createFollowRequest);
+followRouter.route("/:userId/follow-request/:requestId/accept").post(verifyUser, acceptFollowRequest);
+followRouter.route("/:userId/follow-request/:requestId/reject").delete(verifyUser, rejectFollowRequest);
+followRouter.route("/:userId/follow/:followId").delete(verifyUser, removeFollower);
+followRouter.route("/:userId/followers").get(verifyUser, getAllFollowersForUser);
+followRouter.route("/:userId/followers/count").get(verifyUser, getAllFollowersCount);
+followRouter.route("/:userId/follow-requests/sent").get(verifyUser, getAllFollowRequestsSent);
+followRouter.route("/:userId/follow-requests/received").get(verifyUser, allFollowRequestsReceived);
+followRouter.route("/:userId/follow-requests/:requestId").delete(verifyUser, cancelFollowRequest);
 
 export default followRouter

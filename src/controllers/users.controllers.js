@@ -189,6 +189,7 @@ const getUserDetailsByUserIdOrUserName = asyncHandler(async(req, res) => {
         throw new ApiError(401, "Please Login To Continue", new Error("User is not-logged in"), "getUserDetailsByUserIdOrUserName: users.controllers.js")
 
     const searchUserId_UserName = req.params?.userId_Name
+    console.log("searchUserId_UserName", searchUserId_UserName)
     if(!searchUserId_UserName)
         throw new ApiError(404, "Invalid Request", new Error("searchUserId_UserName id not found"), "getUserDetailsByUserIdOrUserName: users.controllers.js")
     

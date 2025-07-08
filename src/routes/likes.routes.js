@@ -7,7 +7,7 @@ const likesRouter = express.Router()
 
 
 likesRouter.route("/post/:postId/like").post(verifyUser, toggleLikeController)
-likesRouter.route("user/:userIdorName/likes").get(verifyUser, getAllLikedPostsForUser)
+likesRouter.route("/user/:userIdOrName/likes").get(verifyUser, getAllLikedPostsForUser)
 
 
 export {likesRouter}

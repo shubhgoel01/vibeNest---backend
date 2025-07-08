@@ -7,7 +7,7 @@ import mongoose from "mongoose"
 
 const createFollowRequest = asyncHandler(async (req, res) => {
     const loggedInUserId = req.user?._id
-    const { userId: targetUserId } = req.body
+    const { userId: targetUserId } = req.params
 
     if (!targetUserId) 
         throw new ApiError(400,"Invalid request",new Error("Target User ID missing"),"createFollowRequest: follow.controller.js")
@@ -112,7 +112,7 @@ const removeFollower = asyncHandler(async (req, res) => {
     const followId = req.params.followId;
 
     if (!followId || !mongoose.Types.ObjectId.isValid(followId))
-        throw new ApiError(400,"Invalid request",new Error("Target User ID missing"),"removeFollower: follow.controller.js");
+        throw new ApiError(400,"Invalid request1",new Error("Target User ID missing"),"removeFollower: follow.controller.js");
 
     let response 
     response = await Follower.findOneAndDelete({
@@ -124,7 +124,7 @@ const removeFollower = asyncHandler(async (req, res) => {
     });
 
     if (!response)
-        throw new ApiError(400,"Invalid Request",new Error("No follower/following relationship found"),"removeFollower")
+        throw new ApiError(400,"Invalid Request2",new Error("No follower/following relationship found"),"removeFollower")
 
     return res.status(200).json(
         new ApiResponse(
@@ -138,13 +138,12 @@ const removeFollower = asyncHandler(async (req, res) => {
 
 const getAllFollowersForUser = asyncHandler(async(req, res) => {
     const userId = req.params.userId
-    
 
     const result = await Follower.aggregate([
         { $match: { 
             $or: [
-                { user1Id: userId },
-                { user2Id: userId }
+                { user1Id: new mongoose.Types.ObjectId(userId) },
+                { user2Id: new mongoose.Types.ObjectId(userId) }
             ]}
         },
         {
@@ -195,7 +194,6 @@ const getAllFollowersForUser = asyncHandler(async(req, res) => {
  
 const getAllFollowersCount = asyncHandler(async(req, res) => {
     const userId = req.params.userId
-    console.log(loggedInUserId)
 
     const result = await Follower.where({
         $or:[
@@ -211,18 +209,18 @@ const getAllFollowersCount = asyncHandler(async(req, res) => {
 
 const getAllFollowRequestsSent = asyncHandler(async(req, res)=>{
     const loggedInUserId = req.user?._id
-    const userId = req.params.userId
+    const userId = new mongoose.Types.ObjectId(req.params.userId)
 
-    if(loggedInUserId !== userId)
-        return new ApiError(404, "You Are not Authorized")
+    // if(loggedInUserId !== userId)
+    //         throw new ApiError(404, "You Are not Authorized")
 
     const result = await FollowRequest.aggregate([
         {
             $match: {requestedByUserId: loggedInUserId}
         },
         {
-            $lookup: {
-                from: "users",
+        $lookup: {
+        from: "users",
                 localField: "requestedToUserId",
                 foreignField: "_id",
                 as: "userDetails",
@@ -243,21 +241,21 @@ const getAllFollowRequestsSent = asyncHandler(async(req, res)=>{
         {
             $project: {
                 "userDetails": 1,
-                "createdAt": 1,
+                 "createdAt": 1,
                 "_id": 1
             }
         }
-    ])
-
-    return res.status(200).json(new ApiResponse(200, "Data fetched", result))
+        ])
+    
+        return res.status(200).json(new ApiResponse(200, "Data fetched", result))
 })
 
 const allFollowRequestsReceived = asyncHandler(async(req, res)=>{
     const loggedInUserId = req.user?._id
-    const userId = req.params.userId
+    const userId = new mongoose.Types.ObjectId(req.params.userId)
 
-    if(userId !==loggedInUserId)
-        return new ApiError(404, "Unauthorized request")
+    // if(userId !==loggedInUserId)
+    //     throw new ApiError(404, "Unauthorized request")
 
     const result = await FollowRequest.aggregate([
         {
@@ -296,7 +294,7 @@ const allFollowRequestsReceived = asyncHandler(async(req, res)=>{
 })
 
 const cancelFollowRequest = asyncHandler(async(req, res) => {
-    const requestId = req.body.requestId
+    const requestId = req.params.requestId
     const loggedInUserId = req.user?._id
 
     if(!requestId || !mongoose.Types.ObjectId.isValid(requestId))

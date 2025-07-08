@@ -21,7 +21,7 @@ export const connectDB = async () => {
             useUnifiedTopology: true
         })
 
-    console.log("Database connected successfully:", response.connection.name);
+    // console.log("Database connected successfully:", response.connection.name);
 
     //Create collections
     await createCollections([Comment, Like]);

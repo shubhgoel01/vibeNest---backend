@@ -110,11 +110,6 @@ const updatePost = asyncHandler(async (req, res) => {
     );
 });
 
-/*
-    Things to note:  
-    In above updated code now allow users to update only selected fields, along with that verifying that
-    user is only able to update his own post. (with optimization)
-*/
 
 const deletePost = asyncHandler(async (req, res) => {
     const {postId} = req.body
@@ -146,59 +141,55 @@ const deletePost = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, "PostDeleted Successfully", {isDeleted: true}))
 })
 
-/*
-    IMP : Note that we are first deleting the post and then deleting the posts, because there may be a case if we delete files
-    from the cloudinary first, and may be due to some error (network error) databse operation fails, then the post contains invalid 
-    files links, this is harmful but reverse is not.
-    ALTERNATIVE: we can use transactions
+const getPosts_Merged = asyncHandler(async (req, res) => {
 
-    NOTE: Note how we are performing validation when deletign a post, we are finding a post that matched both
-        1. postId 
-        2. userId
-    So, if some user tries to delete a post that he has not created, he will get error post not found.
-    For this particulat validation, we have one more approach
+    const {pageLimit, lastCreatedAt, lastPostId} = req.query
+    const userName_Id = req.params?.userId
+    const postId = req.params?.postId
+    const loggedInUserId = req.user?._id
 
-    Also its crucial to delete all the likes and comments related to that post
-*/
+    let getPostbyIdQuery = {}, getAllPostsForUserQuery = {}, statusQuery = {}
 
-const getPostsByUserNameOrUserID = asyncHandler(async(req, res) => {
-    const userName_Id = req.params?.userName_Id
-    let query = undefined, query2 = {}
+    if(postId){
+        if(!mongoose.Types.ObjectId.isValid(postId))
+            throw new ApiError(404, "Invalid Request")
+        getPostbyIdQuery = {_id: new mongoose.Types.ObjectId(postId)}
+    }
 
-    const {pageLimit, lastPostId, lastCreatedAt} = req.query
-    
-    if(mongoose.Types.ObjectId.isValid(userName_Id))
-        query = {_id: new mongoose.Types.ObjectId(userName_Id)}
-    else query = {userName: userName_Id}
+    if(userName_Id){
+        let temp = undefined
+        if(mongoose.Types.ObjectId.isValid(userName_Id))
+            temp = {_id: userName_Id}
+        else temp = {userName: userName_Id}
 
-    const user = await User.findOne(query)  
-    const filterStatus = (req.user?._id === user._id)? ["public", "private", "undefined"] : ["public"]
+        const user = await User.findOne(temp)
+        if(!user)
+            throw new ApiError(404, "Invalid Request")
+        userName_Id = user._id
+        getAllPostsForUserQuery = {ownerId: new mongoose.Types.ObjectId(userName_Id)}
+    }
 
-    if(lastPostId)
-        query2 = {
-            $or: [
-                { createdAt: { $lt: new Date(lastCreatedAt) } },
-                { createdAt: new Date(lastCreatedAt), _id: { $lt: lastPostId } }
-            ]
-        }
-                
-    console.log(query2)
-    
+
+    const pagingQuery = (!lastCreatedAt)? {} : {
+        $or: [
+            { createdAt: { $lt: new Date(lastCreatedAt) } },
+            { createdAt: new Date(lastCreatedAt), _id: { $lt: lastPostId } }
+        ]
+    }
+
     const result = await Post.aggregate([
-        {
+        { 
             $match: {
-                ownerId: user._id, 
-                status: {
-                    $in: filterStatus
-                },
-                ...query2
+                ...pagingQuery,
+                ...getPostbyIdQuery,
+                ...getAllPostsForUserQuery,
             }
         },
         {
             $sort: {createdAt: -1, _id: -1}
         },
         {
-            $limit: Number(pageLimit)
+            $limit: Number(pageLimit) || 10
         },
         {
             $lookup: {
@@ -206,7 +197,7 @@ const getPostsByUserNameOrUserID = asyncHandler(async(req, res) => {
                 localField: "_id",
                 foreignField: "postId",
                 as: "like",
-                pipeline: [
+                pipeline: req.user?._id ? [
                     {
                         $match: {ownerId: new mongoose.Types.ObjectId(req.user?._id)}
                     },
@@ -214,6 +205,11 @@ const getPostsByUserNameOrUserID = asyncHandler(async(req, res) => {
                         $project: {
                             _id: 1
                         }
+                    }
+                ] : 
+                [
+                    {
+                        $match: {ownerId: ""}
                     }
                 ]
             }
@@ -227,17 +223,16 @@ const getPostsByUserNameOrUserID = asyncHandler(async(req, res) => {
                 pipeline: [
                     {
                         $project: {
-                            _id: 1,
-                            userName: 1,
-                            avatar: 1
+                            "userName": 1,
+                            "avatar": 1,
+                            "_id": 1
                         }
                     }
                 ]
             }
         },
         {
-            $unwind: "$ownerDetails"    // NOTE: by defualt, lookup returns an array, but i am sure there is only one element and 
-            //in my result i awnt to store the object directly, so flattenned the ownerDetails
+            $unwind: "$ownerDetails"
         },
         {
             $addFields: {
@@ -264,64 +259,7 @@ const getPostsByUserNameOrUserID = asyncHandler(async(req, res) => {
                 "isLiked": 1,
                 "ownerDetails": 1
             }
-        }    
-    ])
-    console.log(result)
-
-    const resultLength = result.length
-    const metaData = {
-        pageLimit: pageLimit,
-        lastPostId: (resultLength<pageLimit)? null : result[resultLength-1]._id,
-        lastCreatedAt:  (resultLength<pageLimit)? null : result[resultLength-1].createdAt,
-    }
-
-    return res  
-    .status(200)
-    .json(new ApiResponse(
-        200
-        ,`Posts fetched for user ${user.userName || userName_Id}`
-        ,{result, metaData}))
-})
-
-const getAllPosts = asyncHandler(async (req, res) => {
-
-    const {pageLimit, lastCreatedAt, lastPostId} = req.query
-
-
-    const query = (!lastCreatedAt)? {} : {
-        $or: [
-            { createdAt: { $lt: new Date(lastCreatedAt) } },
-            { createdAt: new Date(lastCreatedAt), _id: { $lt: lastPostId } }
-        ]
-    }
-
-    const result = await Post.aggregate([
-        { 
-            $match: query
-        },
-        {
-            $sort: {createdAt: -1, _id: -1}
-        },
-        {
-            $limit: Number(pageLimit)
-        },
-        {
-            $lookup: {
-                from: "users",
-                localField: "ownerId",
-                foreignField: "_id",
-                as: "ownerDetails",
-                pipeline: [
-                    {
-                        $project: {
-                            "userName": 1,
-                            "avatar": 1,
-                            "_id": 1
-                        }
-                    }
-                ]
-            }
-        }
+        } 
     ])
     const resultLength = result.length
     const metaData = {
@@ -337,52 +275,363 @@ const getAllPosts = asyncHandler(async (req, res) => {
     ))
 })
 
-const getPostByID = asyncHandler(async (req, res) => {
-    const {postId} = req.params
-
-    const result = await Post.aggregate([
-        {
-            $match: {_id: new mongoose.Types.ObjectId(postId)}
-        },
-        {
-            $lookup: {
-                from: "users",
-                localField: "ownerId",
-                foreignField: "_id",
-                as: "ownerDetails",
-                pipeline: [
-                    {
-                        $project: {
-                            "userName": 1,
-                            "avatar": 1,
-                            "_id": 1
-                        }
-                    }
-                ]
-            }
-        },
-        {
-            $unwind: "$ownerDetails"
-        }
-    ])
-
-    return res.status(200).json(new ApiResponse(
-        200,
-        "Post fetched successfully",
-        result
-    ))
-})
 
 
 export {
     uploadPost,
     updatePost,
     deletePost,
-    getPostsByUserNameOrUserID,
-    getAllPosts,
-    getPostByID
+    // getPostsByUserNameOrUserID,
+    // getAllPosts,
+    // getPostByID,
+    getPosts_Merged
 }
 
-//TODO: getAllPosts, getPostsByUserName, (include functionalities like, is post liked? by the user also handle when user is loogedIn and not loggedIn), changeStatusOfPost(unPublished, private, public)
+/*
+    Things to note:  
+    In above updated code now allow users to update only selected fields, along with that verifying that
+    user is only able to update his own post. (with optimization)
+*/
+// async function getAllowedStatusArray(userId, loggedInUserId) {
+//     console.log("Function called")
+//     console.log(userId)
+//     console.log(loggedInUserId)
 
-//NEED TO UPDATE getPostsByUserName, there are many inconsistencies that can ause problems in frontEnd, also include some userDetails
+//     if(userId.equals(loggedInUserId))           //Note both are mongoogeObjectId's so cannot be compared using == or === (always gives false in these cases)
+//         return (["public", "private", "protected"])
+
+//     const friend = await Follower.findOne({
+//         $or: [
+//             {user1Id: userId, user2Id: loggedInUserId},
+//             {user2Id: userId, user1Id: loggedInUserId},
+//         ]
+//     })
+
+//     console.log(friend)
+
+//     if(friend)
+//         return ["public", "private"]
+//     return ["public"]
+// }
+
+
+/*
+    IMP : Note that we are first deleting the post and then deleting the posts, because there may be a case if we delete files
+    from the cloudinary first, and may be due to some error (network error) databse operation fails, then the post contains invalid 
+    files links, this is harmful but reverse is not.
+    ALTERNATIVE: we can use transactions
+
+    NOTE: Note how we are performing validation when deletign a post, we are finding a post that matched both
+        1. postId 
+        2. userId
+    So, if some user tries to delete a post that he has not created, he will get error post not found.
+    For this particulat validation, we have one more approach
+
+    Also its crucial to delete all the likes and comments related to that post
+*/
+
+// const getPostsByUserNameOrUserID = asyncHandler(async(req, res) => {
+//     const userName_Id = req.params?.userName_Id
+//     let query = undefined, query2 = {}
+
+//     const {pageLimit, lastPostId, lastCreatedAt} = req.query
+    
+//     if(mongoose.Types.ObjectId.isValid(userName_Id))
+//         query = {_id: new mongoose.Types.ObjectId(userName_Id)}
+//     else query = {userName: userName_Id}
+
+//     const user = await User.findOne(query)  
+//     const filterStatus = (req.user?._id === user._id)? ["public", "private", "undefined"] : ["public"]
+
+//     if(lastPostId)
+//         query2 = {
+//             $or: [
+//                 { createdAt: { $lt: new Date(lastCreatedAt) } },
+//                 { createdAt: new Date(lastCreatedAt), _id: { $lt: lastPostId } }
+//             ]
+//         }
+                
+//     console.log(query2)
+    
+//     const result = await Post.aggregate([
+//         {
+//             $match: {
+//                 ownerId: user._id, 
+//                 status: {
+//                     $in: filterStatus
+//                 },
+//                 ...query2
+//             }
+//         },
+//         {
+//             $sort: {createdAt: -1, _id: -1}
+//         },
+//         {
+//             $limit: Number(pageLimit)
+//         },
+//         {
+//             $lookup: {
+//                 from: "likes",
+//                 localField: "_id",
+//                 foreignField: "postId",
+//                 as: "like",
+//                 pipeline: [
+//                     {
+//                         $match: {ownerId: new mongoose.Types.ObjectId(req.user?._id)}
+//                     },
+//                     {
+//                         $project: {
+//                             _id: 1
+//                         }
+//                     }
+//                 ]
+//             }
+//         },
+//         {
+//             $lookup: {
+//                 from: "users",
+//                 localField: "ownerId",
+//                 foreignField: "_id",
+//                 as: "ownerDetails",
+//                 pipeline: [
+//                     {
+//                         $project: {
+//                             _id: 1,
+//                             userName: 1,
+//                             avatar: 1
+//                         }
+//                     }
+//                 ]
+//             }
+//         },
+//         {
+//             $unwind: "$ownerDetails"    // NOTE: by defualt, lookup returns an array, but i am sure there is only one element and 
+//             //in my result i awnt to store the object directly, so flattenned the ownerDetails
+//         },
+//         {
+//             $addFields: {
+//                 isLiked: {
+//                     $cond: {
+//                         if: {$size: "$like"},
+//                         then: true,
+//                         else: false
+//                     }
+//                 }
+//             }
+//         },
+//         {
+//             $project: {
+//                 "_id" : 1,
+//                 "title": 1,
+//                 "description": 1,
+//                 "fileUrl": 1,
+//                 "ownerId": 1,
+//                 "views": 1,
+//                 "likesCount": 1,
+//                 "commentsCount": 1,
+//                 "createdAt": 1,
+//                 "isLiked": 1,
+//                 "ownerDetails": 1
+//             }
+//         }    
+//     ])
+//     console.log(result)
+
+//     const resultLength = result.length
+//     const metaData = {
+//         pageLimit: pageLimit,
+//         lastPostId: (resultLength<pageLimit)? null : result[resultLength-1]._id,
+//         lastCreatedAt:  (resultLength<pageLimit)? null : result[resultLength-1].createdAt,
+//     }
+
+//     return res  
+//     .status(200)
+//     .json(new ApiResponse(
+//         200
+//         ,`Posts fetched for user ${user.userName || userName_Id}`
+//         ,{result, metaData}))
+// })
+
+// const getAllPosts = asyncHandler(async (req, res) => {
+
+//     const {pageLimit, lastCreatedAt, lastPostId} = req.query
+
+
+//     const query = (!lastCreatedAt)? {} : {
+//         $or: [
+//             { createdAt: { $lt: new Date(lastCreatedAt) } },
+//             { createdAt: new Date(lastCreatedAt), _id: { $lt: lastPostId } }
+//         ]
+//     }
+
+//     const result = await Post.aggregate([
+//         { 
+//             $match: query
+//         },
+//         {
+//             $sort: {createdAt: -1, _id: -1}
+//         },
+//         {
+//             $limit: Number(pageLimit)
+//         },
+//         {
+//             $lookup: {
+//                 from: "likes",
+//                 localField: "_id",
+//                 foreignField: "postId",
+//                 as: "like",
+//                 pipeline: [
+//                     {
+//                         $match: {ownerId: new mongoose.Types.ObjectId(req.user?._id)}
+//                     },
+//                     {
+//                         $project: {
+//                             _id: 1
+//                         }
+//                     }
+//                 ]
+//             }
+//         },
+//         {
+//             $lookup: {
+//                 from: "users",
+//                 localField: "ownerId",
+//                 foreignField: "_id",
+//                 as: "ownerDetails",
+//                 pipeline: [
+//                     {
+//                         $project: {
+//                             "userName": 1,
+//                             "avatar": 1,
+//                             "_id": 1
+//                         }
+//                     }
+//                 ]
+//             }
+//         },
+//         {
+//             $unwind: "$ownerDetails"
+//         },
+//         {
+//             $addFields: {
+//                 isLiked: {
+//                     $cond: {
+//                         if: {$size: "$like"},
+//                         then: true,
+//                         else: false
+//                     }
+//                 }
+//             }
+//         },
+//         {
+//             $project: {
+//                 "_id" : 1,
+//                 "title": 1,
+//                 "description": 1,
+//                 "fileUrl": 1,
+//                 "ownerId": 1,
+//                 "views": 1,
+//                 "likesCount": 1,
+//                 "commentsCount": 1,
+//                 "createdAt": 1,
+//                 "isLiked": 1,
+//                 "ownerDetails": 1
+//             }
+//         } 
+//     ])
+//     const resultLength = result.length
+//     const metaData = {
+//         pageLimit: pageLimit,
+//         lastCreatedAt: resultLength<pageLimit? null : result[result.length-1].createdAt,
+//         lastPostId: resultLength<pageLimit? null : result[result.length-1]._id
+//     }
+
+//     return res.status(200).json(new ApiResponse(
+//         200,
+//         "Next Page fetched Successfully",
+//         {result, metaData}
+//     ))
+// })
+
+// const getPostByID = asyncHandler(async (req, res) => {
+//     const {postId} = req.params
+//     console.log(postId)
+
+//     const result = await Post.aggregate([
+//         {
+//             $match: {_id: new mongoose.Types.ObjectId(postId)}
+//         },
+//         {
+//             $lookup: {
+//                 from: "users",
+//                 localField: "ownerId",
+//                 foreignField: "_id",
+//                 as: "ownerDetails",
+//                 pipeline: [
+//                     {
+//                         $project: {
+//                             "userName": 1,
+//                             "avatar": 1,
+//                             "_id": 1
+//                         }
+//                     }
+//                 ]
+//             }
+//         },
+//         {
+//             $lookup: {
+//                 from: "likes",
+//                 localField: "_id",
+//                 foreignField: "postId",
+//                 as: "like",
+//                 pipeline: [
+//                     {
+//                         $match: {ownerId: new mongoose.Types.ObjectId(req.user?._id)}
+//                     },
+//                     {
+//                         $project: {
+//                             "_id": 1
+//                         }
+//                     }
+//                 ]
+//             }
+//         },
+//         {
+//             $addFields: {
+//                 isLiked: {
+//                     $cond: {
+//                         if: {$size: "$like"},
+//                         then: true,
+//                         else: false
+//                     }
+//                 }
+//             }
+//         },
+//         {
+//             $unwind: "$ownerDetails"
+//         },
+//         {
+//             $project: {
+//                 "_id" : 1,
+//                 "title": 1,
+//                 "description": 1,
+//                 "fileUrl": 1,
+//                 "ownerId": 1,
+//                 "views": 1,
+//                 "likesCount": 1,
+//                 "commentsCount": 1,
+//                 "createdAt": 1,
+//                 "isLiked": 1,
+//                 "ownerDetails": 1
+//             }
+//         }
+//     ])
+
+//     return res.status(200).json(new ApiResponse(
+//         200,
+//         "Post fetched successfully",
+//         result
+//     ))
+// })
+
+

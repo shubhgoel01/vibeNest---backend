@@ -4,11 +4,14 @@ import { uploadPost } from "../controllers/post.controllers.js"
 import { updatePost } from "../controllers/post.controllers.js"
 import { deletePost } from "../controllers/post.controllers.js"
 import { upload } from "../utils/multer.utils.js"
-import { getAllPosts } from "../controllers/post.controllers.js"
-import { getPostsByUserNameOrUserID } from "../controllers/post.controllers.js"
+// import { getAllPosts } from "../controllers/post.controllers.js"
+// import { getPostsByUserNameOrUserID } from "../controllers/post.controllers.js"
+// import { getPostByID } from "../controllers/post.controllers.js"
+import { getPosts_Merged } from "../controllers/post.controllers.js"
+
 const postRouter = express.Router()
 
-postRouter.route("/uploadPost").post(
+postRouter.route("/post").post(
     verifyUser,
     upload.fields([
         {
@@ -24,8 +27,9 @@ postRouter.route("/uploadPost").post(
 )
 postRouter.route("/:postId").patch(verifyUser, updatePost)
 postRouter.route("/:postId").delete(verifyUser, deletePost)
-postRouter.route("").get(verifyUser, getAllPosts)
+postRouter.route("/:postId").get(verifyUser, getPosts_Merged)
+postRouter.route("").get(verifyUser, getPosts_Merged)
 
-postRouter.route("/getPost/:userName_Id").get(verifyUser, getPostsByUserNameOrUserID)
+postRouter.route("/getPosts/:userName_Id").get(verifyUser, getPosts_Merged)
 
 export {postRouter}

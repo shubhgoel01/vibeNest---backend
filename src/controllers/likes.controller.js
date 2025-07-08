@@ -4,6 +4,7 @@ import { Like } from "../models/likes.models.js";
 import { Post } from "../models/posts.models.js";
 import mongoose from "mongoose";
 import ApiResponse from "../utils/ApiResponse.utils.js";
+import { User } from "../models/users.models.js";
 
 const toggleLikeController = asyncHandler(async (req, res) => {
     const {postId} = req.body
@@ -58,7 +59,56 @@ const toggleLikeController = asyncHandler(async (req, res) => {
 })
 
 const getAllLikedPostsForUser = asyncHandler(async(req, res) => {
-    
+    const userIdOrName = req.params.userIdOrName
+    const loggedInUserId = req.user?._id
+
+    console.log(userIdOrName)
+
+    const query = mongoose.isValidObjectId(userIdOrName)? {_id: userIdOrName} : {username: userIdOrName}
+
+    const user = await User.findOne(query)
+    console.log(user)
+
+    // if(user._id != loggedInUserId)
+    //     throw new ApiError(403, "You are not authorized", new Error("User not authorized"), "getAllLikedPostsForUser: likes.controller.js")
+
+    const result = await Like.aggregate([
+        {
+            $match: {ownerId: new mongoose.Types.ObjectId(userIdOrName)}
+        },
+        {
+            $lookup: {
+                from: "users",
+                localField: "ownerId",
+                foreignField: "_id",
+                as: "ownerDetails",
+                pipeline: [
+                    {
+                        $project: {
+                            "userName": 1,
+                            "avatar": 1,
+                            "_id": 1
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            $unwind: "$ownerDetails"
+        },
+        {
+            $project: {
+                _id: 1,
+                ownerId: 1,
+                postDetails: 1,
+                isLikedByLoggedInUser: { $eq: ["$ownerId", loggedInUserId] }
+            }
+        }
+
+    ])
+    console.log(result)
+
+    return res.status(200).json(new ApiResponse(100, "success", result))
 })
 
 export {
