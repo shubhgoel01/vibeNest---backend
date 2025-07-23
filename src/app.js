@@ -8,7 +8,11 @@ import cors from 'cors';
 const app = express();
 
 //Inbuilt Middleware
-app.use(cors())
+app.use(cors({
+  origin: "http://localhost:5174",
+  credentials: true
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static("public"))
@@ -23,6 +27,7 @@ import { userRouter } from './routes/user.routes.js';
 import followRouter from './routes/follow.routes.js';
 import { authRouter } from './routes/user.routes.js';
 import { postRouter } from './routes/posts.routes.js';
+import { trendingRouter } from './routes/trending.routes.js';
 
 app.use(errorRouter)
 app.use(tempRouter)
@@ -33,6 +38,7 @@ app.use("/v1/posts", postRouter)
 app.use("/v1/user", userRouter)
 app.use("/v1/user", followRouter)
 app.use("/v1/auth", authRouter)
+app.use("/v1/trending", trendingRouter)
 
 
 //Import Custom Middlewares

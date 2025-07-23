@@ -118,15 +118,16 @@ const loginController = asyncHandler(async(req, res) => {
 
 const refreshAccessToken = asyncHandler(async (req, res) => {
     const refreshToken = req.cookies?.refreshToken || req.header("Autorization")?.replace("Bearer ", "")
+    console.log(refreshToken)
     const options = {
         httpOnly: true,
         secure: true
     }
 
+
     if(!refreshToken)
         throw new ApiError(400, "You have been Logged Out", new Error("No RefreshToken found"), "refreshAccessToken: user.controller.js")
-
-    const decoded = await jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET)
+    const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET)
 
     const userId = decoded._id
     const user = await User.findById(userId)
@@ -136,7 +137,6 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
     if( user.refreshToken !== refreshToken )
         throw new ApiError(400, "You have been Logged Out", new Error("RefreshToekn does not match"), "refreshAccessToken: user.controller.js")
-
     const newRefreshToken = await user.generateRefreshToken()
     const newAccessToken = await user.generateAccessToken()
 

@@ -12,16 +12,14 @@ const createCollections = async (models) => {
 };
 
 export const connectDB = async () => {
+    console.log("Connecting to database...");
     const dbUrl = process.env.DB_URL;
-    if (!dbUrl) 
-        throw new ApiError(500,"Database URL is not defined in environment variables",{}, "connectDB : index.db.js");
+    if (!dbUrl) {console.error("Database URL is not defined in environment variables");
+        throw new ApiError(500,"Database URL is not defined in environment variables",{}, "connectDB : index.db.js");}
 
-    const response = await mongoose.connect(dbUrl, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true
-        })
+    const response = await mongoose.connect(dbUrl)
 
-    // console.log("Database connected successfully:", response.connection.name);
+    console.log("Database connected successfully");
 
     //Create collections
     await createCollections([Comment, Like]);

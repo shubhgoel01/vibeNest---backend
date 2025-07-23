@@ -11,7 +11,7 @@ connectDB()
             console.log(`Server started Successfuly Running on http://localhost:${port}`)
         })
 
-        // console.log(server)
+        console.log("server is running on port: ", port)
 
         server.on("error", (error) => {
             console.log(`Server Failed to start: `, error)
@@ -19,5 +19,5 @@ connectDB()
         })
     } )
     .catch((error) => {
-        console.log(`Failed to connect to database: `, error)
+        console.error(`Failed to connect to database or server `, error)
     })
