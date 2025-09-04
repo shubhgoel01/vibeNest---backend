@@ -8,7 +8,7 @@ import { Follower } from "../models/followers.models.js";
 
 const addCommentController = asyncHandler( async (req, res) => {
     const {content} = req.body
-    const postId = req.params.postId
+    const postId = req.params?.postId
     const userId = req.user?._id
 
     if(!postId || !mongoose.Types.ObjectId.isValid(postId))
@@ -20,7 +20,7 @@ const addCommentController = asyncHandler( async (req, res) => {
     const session = await mongoose.startSession();
     session.startTransaction();
 
-    let response = undefined
+    let response = null
 
     try {
         response = await Post.findById(postId, null, {session})
@@ -47,9 +47,11 @@ const addCommentController = asyncHandler( async (req, res) => {
         }],
         {session})
 
-        const response = createdComment.toObject()
+        response = createdComment.toObject()
         delete response.__v      
         delete response.updatedAt
+
+        console.log("createdComment",response)
 
         
         await Post.findByIdAndUpdate( 
@@ -75,6 +77,7 @@ const addCommentController = asyncHandler( async (req, res) => {
     } 
     catch (error) {
         await session.abortTransaction();
+        console.log(error)
         throw new ApiError(error.statusCode.status || 500,
             error.message || "Some internal error occurred", 
             error, 
@@ -133,28 +136,16 @@ const getMyAllComments = asyncHandler(async(req, res) => {
 
 const getAllCommentsForPost = asyncHandler(async(req, res) => {
     const {postId} = req.params
-    const {pageLimit, lastCreatedAt, lastPostId} = req.query
     let query = undefined
-
-    query = (!lastCreatedAt)? {} : {
-        $or: [
-            {createdAt: {$lt: new Date(lastCreatedAt)}},
-            {createdAt: new Date(lastCreatedAt), _id: {$lt: lastPostId}}
-        ]
-    }
 
     const result = await Comment.aggregate([
         {
             $match: {
                 postId: new mongoose.Types.ObjectId(postId),
-                ...query
             }
         },
         {
             $sort: {createdAt: -1, _id: -1}
-        },
-        {
-            $limit: Number(pageLimit) || 10
         },
         {
             $lookup: {
@@ -187,16 +178,10 @@ const getAllCommentsForPost = asyncHandler(async(req, res) => {
 
     const resultLength = result.length
 
-    const metaData = {
-        pageLimit: pageLimit,
-        lastCreatedAt: (resultLength<pageLimit) ? null : result[resultLength-1].createdAt,
-        lastPostId: (resultLength<pageLimit) ? null : result[resultLength-1]._id,
-    }
-
     return res.status(200).json(new ApiResponse(
         200,
         "Comments fetched successfully",
-        {result, metaData}
+        result
     ))
 })
 

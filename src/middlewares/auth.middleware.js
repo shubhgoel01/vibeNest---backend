@@ -6,17 +6,25 @@ import { User } from "../models/users.models.js"
 const verifyUser = asyncHandler(async (req, res, next) => {
     const accessToken = req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer ", "")
 
-    if(!accessToken)
+    console.log("verify user called")
+
+    if(!accessToken){
+        console.log("verifyUser Access token not found")
         throw new ApiError(401, "Unauthorized Access", "accessToken not found", "verifyUser: auth.middleWare.js")
+    }
 
     const decodedToken = jwt.verify(accessToken, process.env.ACCESS_TOKEN_SECRET)
+    console.log("decoded token", decodedToken)
     
-    if(!decodedToken)
-        throw new ApiError(401, "Unauthorized Access", "accessToken has expired", "verifyUser: auth.middleWare.js")
+    if(!decodedToken){
+        console.log("decoded token not found")
+        throw new ApiError(401, "Unauthorized Access", "accessToken has expired", "verifyUser: auth.middleWare.js")}
 
     const user = await User.findById(decodedToken?._id).select("-password -refreshtoken")
 
     req.user = user
+
+    console.log("verify user ended")
     next()
 })
 

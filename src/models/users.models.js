@@ -51,6 +51,7 @@ userSchema.methods.isPasswordCorrect = async function (password){
     return await bcrypt.compare(password, this.password);
 }
 
+
 userSchema.pre('save', async function(next){
     if(!this.isModified('password'))
         return next()
@@ -72,7 +73,7 @@ userSchema.methods.generateRefreshToken = async function(){
     };
 
     const refreshToken = await jwt.sign(payload, process.env.REFRESH_TOKEN_SECRET, options);
-    console.log('Generated JWT:', refreshToken);
+    // console.log('Generated JWT:', refreshToken);
 
     return refreshToken
 };
@@ -90,7 +91,7 @@ userSchema.methods.generateAccessToken = async function(){
     };
 
     const accessToken = await jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, options);
-    console.log('Generated JWT:', accessToken);
+    // console.log('Generated JWT:', accessToken);
 
     return accessToken
 };

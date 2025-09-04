@@ -4,12 +4,12 @@ import ApiResponse from "../utils/ApiResponse.utils.js";
 import mongoose from "mongoose";
 
 const getAllTrending = async (req, res) => {
-    console.log("getAllTrending called")
-    const trending = await Trending.find().sort({impressions: -1})
+    const trending = await Trending.find().sort({ impressions: -1 }).limit(20);
     return res.status(200).json(new ApiResponse(200, "All Trends", trending));
 }
 
 const addImpression = async (req, res) => {
+    console.log("Add Impression called")
     const _id = req?.params?._id
     if(!_id)
         throw new ApiError(404, "Please Pass the id", {})
@@ -44,24 +44,27 @@ const deleteTrending = async (req, res) => {
 
 const findTrendingByTag = async (req, res) => {
     console.log("findTrendingByTag function called`")
-    const tag = "#" + req?.params.tag
-    if(!tag)
+    const tag = req?.params.tag
+    console.log(tag)
+    if(!tag){
         throw new ApiError(400, "No Trending found", {})
+    }
 
     let response = await Trending.find({tag: tag})
-    if(!response || response.length === 0)
+    if(!response)
         throw new ApiError(404, "no trend found")
 
     console.log(response)
 
-    return res.status(200).json(new ApiResponse(200, "trend found", response))
+    return res.status(200).json(new ApiResponse(200, "trend found", ...response))
 }
 
 const createnewTrending = async (req, res) => {
-    const tag = "#" + req.body?.tag
+    const tag = req.body?.tag
     const loggedInUserId = req.user?._id
+    console.log(tag)
     if(!tag)
-        throw new ApiError(404, "No Trending found", {})
+        throw new ApiError(404, "No Trending tag found", {})
 
     let response = await Trending.create({
         tag: tag,

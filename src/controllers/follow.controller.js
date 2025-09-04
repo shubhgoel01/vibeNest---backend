@@ -9,11 +9,13 @@ const createFollowRequest = asyncHandler(async (req, res) => {
     const loggedInUserId = req.user?._id
     const { userId: targetUserId } = req.params
 
-    if (!targetUserId) 
-        throw new ApiError(400,"Invalid request",new Error("Target User ID missing"),"createFollowRequest: follow.controller.js")
+    if (!targetUserId){
+        console.log("targetUserId not found") 
+        throw new ApiError(400,"Invalid request",new Error("Target User ID missing"),"createFollowRequest: follow.controller.js")}
 
-    if (loggedInUserId.toString() === targetUserId)
-        throw new ApiError(400,"Invalid request",new Error("You cannot send a follow request to yourself"),"createFollowRequest: follow.controller.js")
+    if (loggedInUserId.toString() === targetUserId){
+        console.log("loggedInUser == requestedUser")
+        throw new ApiError(400,"Invalid request",new Error("You cannot send a follow request to yourself"),"createFollowRequest: follow.controller.js")}
 
     const existingRequest = await FollowRequest.findOne({
         requestedByUserId: loggedInUserId,
@@ -54,18 +56,13 @@ const acceptFollowRequest = asyncHandler(async (req, res) => {
     if(!requestId || !mongoose.Types.ObjectId.isValid(requestId))
         throw new ApiError(400, "invalid requestId")
 
-    const session = await mongoose.startSession()
-    session.startTransaction()
-
     try {
-        const followRequest = await FollowRequest.findOneAndDelete({_id: requestId, requestedToUserId: loggedInUserId},{ session })
+        const followRequest = await FollowRequest.findOneAndDelete({_id: requestId, requestedToUserId: loggedInUserId})
 
         if (!followRequest) 
             throw new ApiError(400,"Invalid Request",new Error("No follow request found or unauthorized action"),"acceptFollowRequest")
         
-        await Follower.create([{user1Id: loggedInUserId,user2Id: followRequest.requestedByUserId}],{ session })
-
-        await session.commitTransaction()
+        await Follower.create({user1Id: loggedInUserId,user2Id: followRequest.requestedByUserId})
 
         return res
             .status(200)
@@ -73,11 +70,7 @@ const acceptFollowRequest = asyncHandler(async (req, res) => {
     } 
     catch (error) {
         console.log(error)
-        await session.abortTransaction()
         throw new ApiError(500,"An internal error occurred",error,"acceptFollowRequest: followers.controller.js")
-    } 
-    finally {
-        session.endSession()
     }
 })
 
@@ -138,6 +131,8 @@ const removeFollower = asyncHandler(async (req, res) => {
 
 const getAllFollowersForUser = asyncHandler(async(req, res) => {
     const userId = req.params.userId
+    console.log("getAllFollowersForUser called")
+    console.log("input userId", userId)
 
     const result = await Follower.aggregate([
         { $match: { 
@@ -294,8 +289,13 @@ const allFollowRequestsReceived = asyncHandler(async(req, res)=>{
 })
 
 const cancelFollowRequest = asyncHandler(async(req, res) => {
+    console.log("Remove follow request called")
     const requestId = req.params.requestId
     const loggedInUserId = req.user?._id
+
+    console.log("requestId", requestId)
+    console.log("loggedInUserId", loggedInUserId)
+
 
     if(!requestId || !mongoose.Types.ObjectId.isValid(requestId))
         throw new ApiError(400, "Invalid Request")

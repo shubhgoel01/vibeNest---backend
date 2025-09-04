@@ -7,6 +7,7 @@ import ApiResponse from "../utils/ApiResponse.utils.js";
 import { User } from "../models/users.models.js";
 
 const toggleLikeController = asyncHandler(async (req, res) => {
+    console.log("toggleLikeController")
     const {postId} = req.body
     const loggedInUserId = req.user?._id
 
