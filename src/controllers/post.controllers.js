@@ -13,6 +13,10 @@ import { Comment } from "../models/comments.models.js";
 
 const uploadPost = asyncHandler(async (req, res) => {
   const { title, description = "Default", status = "public" } = req.body;
+  // Debug logs to trace incoming request and files
+  console.log("uploadost Called")
+  console.log("uploadPost: incoming body ->", req.body);
+  console.log("uploadPost: files ->", (req.files || []).map(f => ({ originalname: f.originalname, path: f.path, size: f.size })));
   const userId = req.user?._id;
   const array_files = [];
   // console.log("files", req.files)
@@ -91,6 +95,8 @@ const uploadPost = asyncHandler(async (req, res) => {
   const savedPost = (await newPost.save()).toObject();
   delete savedPost.updatedAt;
   delete savedPost.__v;
+
+  console.log("Post Created")
 
   return res
     .status(201)

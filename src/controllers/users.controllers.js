@@ -14,11 +14,15 @@ import mongoose from "mongoose";
 const registerController = asyncHandler(async (req, res) => { 
   const { userName, password, fullName, email } = req.body;
   console.log("register controller called")
+  console.log("register incoming cookies:", req.cookies)
 
-  const options = {
-        httpOnly: true,
-        secure: true,
-    };
+  const isProd = process.env.NODE_ENV === 'production';
+  const cookieOptions = {
+    httpOnly: true,
+    secure: isProd, // secure only in production (HTTPS)
+    sameSite: isProd ? 'none' : 'lax',
+    path: '/',
+  };
 
   if (!userName || !password || !fullName || !email) {
     throw new ApiError(400, "All fields are required", {}, "registerController: users.controllers.js");
@@ -71,8 +75,8 @@ const registerController = asyncHandler(async (req, res) => {
 
   return res
     .status(201)
-    .cookie("accessToken", newAccessToken, options)
-    .cookie("refreshToken", newRefreshToken, options)
+    .cookie("accessToken", newAccessToken, cookieOptions)
+    .cookie("refreshToken", newRefreshToken, cookieOptions)
     .json(
       new ApiResponse(201, "User successfully registered", {
         user: loggedInUser,              // ✅ object
@@ -91,10 +95,13 @@ const loginController = asyncHandler(async (req, res) => {
   console.log(email)
 
 
-  const options = {
-        httpOnly: true,
-        secure: true,
-    };
+  const isProd = process.env.NODE_ENV === 'production';
+  const cookieOptions = {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+    path: '/',
+  };
 
   if ((!email && !userName) || !password) {
     throw new ApiError(400, "All fields are required", {}, "loginController: users.controllers.js");
@@ -143,8 +150,8 @@ const loginController = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .cookie("accessToken", newAccessToken, options)
-    .cookie("refreshToken", newRefreshToken, options)
+    .cookie("accessToken", newAccessToken, cookieOptions)
+    .cookie("refreshToken", newRefreshToken, cookieOptions)
     .json(
       new ApiResponse(200, "user logged in successfully", {
         user: loggedInUser,             // ✅ object (not array)
@@ -158,10 +165,13 @@ const loginController = asyncHandler(async (req, res) => {
 const refreshAccessToken = asyncHandler(async (req, res) => {
   const refreshToken = req.cookies?.refreshToken;
 
-  const options = {
-        httpOnly: true,
-        secure: true,
-    };
+  const isProd = process.env.NODE_ENV === 'production';
+  const cookieOptions = {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+    path: '/',
+  };
 
   if (!refreshToken) {
     console.log("refresh token not found");
@@ -205,8 +215,8 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .cookie("accessToken", newAccessToken, options)
-    .cookie("refreshToken", newRefreshToken, options)
+    .cookie("accessToken", newAccessToken, cookieOptions)
+    .cookie("refreshToken", newRefreshToken, cookieOptions)
     .json(
       new ApiResponse(200, "user refreshed successfully", {
         user: loggedInUser,
@@ -222,10 +232,14 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
 const logOutUser = asyncHandler(async (req, res) => {
   const userId = req.user._id;
-  const options = {
-        httpOnly: true,
-        secure: true,
-    };
+  console.log("logOutUser incoming cookies:", req.cookies)
+  const isProd = process.env.NODE_ENV === 'production';
+  const cookieOptions = {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+    path: '/',
+  };
 
   await User.findByIdAndUpdate(
     userId,
@@ -239,8 +253,8 @@ const logOutUser = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .clearCookie("accessToken", options)
-    .clearCookie("refreshToken", options)
+    .clearCookie("accessToken", cookieOptions)
+    .clearCookie("refreshToken", cookieOptions)
     .json(new ApiResponse(200, {}, "User logged Out Successfuly"));
 });
 
