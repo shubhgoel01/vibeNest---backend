@@ -1,7 +1,7 @@
 import ApiError from "../utils/apiError.utils.js";
 import asyncHandler from "../utils/asyncHandler.utils.js";
 import { Comment } from "../models/comments.models.js";
-import ApiResponse from "../utils/ApiResponse.utils.js";
+import ApiResponse from "../utils/apiResponse.utils.js";
 import { Post } from "../models/posts.models.js";
 import mongoose from "mongoose";
 import { Follower } from "../models/followers.models.js";

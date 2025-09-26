@@ -1,7 +1,7 @@
 import asyncHandler from "../utils/asyncHandler.utils.js"
 import ApiError from "../utils/apiError.utils.js"
 import { FollowRequest } from "../models/followRequests.models.js"
-import ApiResponse from "../utils/ApiResponse.utils.js"
+import ApiResponse from "../utils/apiResponse.utils.js"
 import { Follower } from "../models/followers.models.js"
 import mongoose from "mongoose"
 

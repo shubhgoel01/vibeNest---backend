@@ -1,6 +1,6 @@
 import { Temp } from "./model.CDC.js"
 import asyncHandler from "../src/utils/asyncHandler.utils.js"
-import ApiResponse from "../src/utils/ApiResponse.utils.js"
+import ApiResponse from "../src/utils/apiResponse.utils.js"
 
 const uploadData = asyncHandler(async (req, res, next) => {
     const {data} = req.body

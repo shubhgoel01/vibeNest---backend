@@ -1,6 +1,6 @@
 import { Trending } from "../models/trending.models.js";
 import ApiError from "../utils/apiError.utils.js";
-import ApiResponse from "../utils/ApiResponse.utils.js";
+import ApiResponse from "../utils/apiResponse.utils.js";
 import mongoose from "mongoose";
 
 const getAllTrending = async (req, res) => {

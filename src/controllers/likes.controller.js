@@ -3,7 +3,7 @@ import asyncHandler from "../utils/asyncHandler.utils.js";
 import { Like } from "../models/likes.models.js";
 import { Post } from "../models/posts.models.js";
 import mongoose from "mongoose";
-import ApiResponse from "../utils/ApiResponse.utils.js";
+import ApiResponse from "../utils/apiResponse.utils.js";
 import { User } from "../models/users.models.js";
 
 const toggleLikeController = asyncHandler(async (req, res) => {

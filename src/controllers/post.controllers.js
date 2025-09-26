@@ -3,7 +3,7 @@ import { MAX_FILES_COUNT } from "../constants.js";
 import asyncHandler from "../utils/asyncHandler.utils.js";
 import ApiError from "../utils/apiError.utils.js";
 import { Post } from "../models/posts.models.js";
-import ApiResponse from "../utils/ApiResponse.utils.js";
+import ApiResponse from "../utils/apiResponse.utils.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.utils.js";
 import mongoose from "mongoose";
 import { deleteFromCloudinary } from "../utils/cloudinary.utils.js";
