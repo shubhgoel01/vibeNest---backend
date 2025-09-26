@@ -22,7 +22,7 @@ app.use(cookieParser())
 import errorRouter from './routes/error.routes.js';
 import tempRouter from '../checkDatabseConnectivity/route.CDC.js';
 import { commentRouter } from './routes/comments.routes.js';
-import { likesRouter } from '../src/routes/likes.routes.js'
+import { likesRouter } from './routes/likes.routes.js'
 import { userRouter } from './routes/user.routes.js';
 import followRouter from './routes/follow.routes.js';
 import { authRouter } from './routes/user.routes.js';
